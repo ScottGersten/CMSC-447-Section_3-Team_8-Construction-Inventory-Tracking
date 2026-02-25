@@ -6,3 +6,5 @@
 - npx create-expo-app@latest ConstructionInventory
 ### Firebase
 - npx expo install firebase
+## Run
+- npx expo start
