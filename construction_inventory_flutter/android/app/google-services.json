@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "505077756834",
+    "project_id": "cmsc447-construction-inventory",
+    "storage_bucket": "cmsc447-construction-inventory.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:505077756834:android:87f05fb3687938acc1b8fb",
+        "android_client_info": {
+          "package_name": "com.example.construction_inventory_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBP5NkWcyMlRzfA68YlN4CcBh-6bI1zECI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
