@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'inventory_page.dart';
+import 'login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,7 +40,11 @@ class MyApp extends StatelessWidget {
         colorScheme: .fromSeed(seedColor: Colors.green),
       ),
       //home: const MyHomePage(title: 'Flutter Demo Home Page'),
-      home: const InventoryPage(),
+      initialRoute: '/login',
+      routes: {
+      '/login': (context) => const LoginPage(),
+      '/inventory': (context) => const InventoryPage(),
+      },
     );
   }
 }
