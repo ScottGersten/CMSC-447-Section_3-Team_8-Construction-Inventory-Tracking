@@ -145,3 +145,143 @@ class FirestoreRepository {
       throw Exception('updateInventoryLocation failed: $e');
     }
   }
+
+  // =========================================================================
+  // USERS
+  // =========================================================================
+
+  CollectionReference<Map<String, dynamic>> get _users =>
+      _db.collection('users');
+
+  Future<AppUser?> getUserByEmail(String email) async {
+    final query = await _users.where('email', isEqualTo: email).limit(1).get();
+    if (query.docs.isEmpty) return null;
+    return AppUser.fromFirestore(query.docs.first);
+  }
+
+  Future<AppUser?> getUserById(String uid) async {
+    final doc = await _users.doc(uid).get();
+    return doc.exists ? AppUser.fromFirestore(doc) : null;
+  }
+
+  Stream<List<AppUser>> streamAllUsers() =>
+      _users.orderBy('name').snapshots().map(
+          (s) => s.docs.map((d) => AppUser.fromFirestore(d)).toList());
+
+  Future<String> createUser(AppUser user) async {
+    try {
+      final dup = await _users
+          .where('email', isEqualTo: user.email)
+          .limit(1)
+          .get();
+      if (dup.docs.isNotEmpty) {
+        throw Exception('User with email "${user.email}" already exists.');
+      }
+      final ref = await _users.add(user.toFirestore());
+      await _writeAuditLog(
+          action: 'Insert',
+          collection: 'users',
+          recordId: ref.id,
+          newValue: '${user.name} (${user.role})');
+      return ref.id;
+    } catch (e) {
+      throw Exception('createUser failed: $e');
+    }
+  }
+
+  Future<void> deleteUser(String userId) async {
+    try {
+      await _users.doc(userId).delete();
+      // Also delete associated credentials
+      try {
+        await _db.collection('userCredentials').doc(userId).delete();
+      } catch (e) {
+        print('Note: userCredentials not found for deleted user');
+      }
+      await _writeAuditLog(
+          action: 'Delete',
+          collection: 'users',
+          recordId: userId,
+          newValue: 'User deleted');
+    } catch (e) {
+      throw Exception('deleteUser failed: $e');
+    }
+  }
+
+  // =========================================================================
+  // PASSWORD CREDENTIALS
+  // =========================================================================
+
+  Future<String?> getPasswordHash(String userId) async {
+    try {
+      final doc = await _db.collection('userCredentials').doc(userId).get();
+      if (!doc.exists) return null;
+      return doc.data()?['passwordHash'] as String?;
+    } catch (e) {
+      print('Error retrieving password hash: $e');
+      return null;
+    }
+  }
+
+  Future<void> setPasswordHash(String userId, String passwordHash) async {
+    try {
+      await _db.collection('userCredentials').doc(userId).set({
+        'passwordHash': passwordHash,
+        'createdAt': DateTime.now(),
+      });
+    } catch (e) {
+      throw Exception('Failed to store password: $e');
+    }
+  }
+
+  Future<void> updatePasswordHash(String userId, String newPasswordHash) async {
+    try {
+      await _db.collection('userCredentials').doc(userId).update({
+        'passwordHash': newPasswordHash,
+        'updatedAt': DateTime.now(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update password: $e');
+    }
+  }
+
+  // =========================================================================
+  // AUDIT LOGS
+  // =========================================================================
+
+  Future<void> _writeAuditLog({
+    required String action,
+    required String collection,
+    required String recordId,
+    String? oldValue,
+    String? newValue,
+  }) async {
+    try {
+      await _db.collection('auditLogs').add({
+        'action': action,
+        'collection': collection,
+        'recordId': recordId,
+        'oldValue': oldValue,
+        'newValue': newValue,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      // Log but don't throw - we don't want audit log failures to break the app
+      print('Audit log failed: $e');
+    }
+  }
+
+  // =========================================================================
+  // INVENTORY STATUS HELPERS
+  // =========================================================================
+
+  /// Determine inventory status based on quantity and threshold.
+  String _deriveStatus(double quantity, double threshold) {
+    if (quantity <= 0) return 'outOfStock';
+    if (quantity <= threshold) return 'lowStock';
+    return 'inStock';
+  }
+
+  /// Convert status enum to string for storage.
+  String _statusStr(String status) => status;
+}
