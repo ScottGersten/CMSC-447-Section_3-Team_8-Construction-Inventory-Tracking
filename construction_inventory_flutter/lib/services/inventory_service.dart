@@ -1,8 +1,8 @@
 import '../models/inventory_item.dart';
 import '../models/delivery.dart';
 import '../models/material_request.dart';
-import '../repositories/firestore_repository.dart';
 import '../models/notification.dart';
+import '../repositories/firestore_repository.dart';
 
 /// Central business-logic controller for Use Cases 1–4 and 9.
 /// The UI calls these methods; this service decides what repository
@@ -22,7 +22,7 @@ class InventoryService {
     required Delivery delivery,
     required String inventoryItemId,
     required double quantityReceived,
-    required List<String> projectManagerUserIds, // notify these users
+    required List<String> projectManagerUserIds,
   }) async {
     // Store the delivery document first so we have an audit trail
     // even if the quantity update fails.
@@ -40,30 +40,32 @@ class InventoryService {
         recipientUserId: uid,
         message:
             'Delivery logged: $quantityReceived units received at location ${delivery.locationId}.',
-        type: 'DeliveryLogged',
+        type: NotificationType.deliveryLogged,
       );
     }
 
-    // Re-fetch updated item to check low-stock status (SRS 4.3.3 / business rule).
+    // Re-fetch updated item to check low-stock status (SRS 4.3.3).
     final updated = await _repo.getInventoryItem(inventoryItemId);
-    if (updated != null && updated.status == InventoryStatus.lowStock) {
+    if (updated == null) return;
+
+    if (updated.status == InventoryStatus.lowStock) {
       for (final uid in projectManagerUserIds) {
         await _repo.writeNotification(
           recipientUserId: uid,
           message:
-              'Low stock alert: inventory item $inventoryItemId is at ${updated.quantity} ${updated.status}.',
-          type: 'LowStock',
+              'Low stock alert: inventory item $inventoryItemId is at ${updated.quantity} units.',
+          type: NotificationType.lowStock,
         );
       }
     }
 
-    if (updated != null && updated.status == InventoryStatus.outOfStock) {
+    if (updated.status == InventoryStatus.outOfStock) {
       for (final uid in projectManagerUserIds) {
         await _repo.writeNotification(
           recipientUserId: uid,
           message:
               'Out of stock: inventory item $inventoryItemId has reached zero.',
-          type: 'LowStock',
+          type: NotificationType.outOfStock,
         );
       }
     }
@@ -90,8 +92,9 @@ class InventoryService {
       await _repo.writeNotification(
         recipientUserId: uid,
         message:
-            'New material request: ${request.quantityRequested} units of material ${request.materialId} needed at location ${request.locationId}.',
-        type: 'MaterialRequested',
+            'New material request: ${request.quantityRequested} units of material '
+            '${request.materialId} needed at location ${request.locationId}.',
+        type: NotificationType.materialRequested,
       );
     }
 
