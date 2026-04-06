@@ -56,14 +56,22 @@ class FirestoreRepository {
   // USERS
   // =========================================================================
 
-  Future<void> createUser(AppUser user) async {
+  Future<String> createUser(AppUser user) async {
     try {
-      await _users.doc(user.uid).set(user.toFirestore());
+      final dup = await _users
+          .where('email', isEqualTo: user.email)
+          .limit(1)
+          .get();
+      if (dup.docs.isNotEmpty) {
+        throw Exception('User with email "${user.email}" already exists.');
+      }
+      final ref = await _users.add(user.toFirestore());
       await _writeAuditLog(
           action: 'Insert',
           collection: 'users',
-          recordId: user.uid,
-          newValue: user.role.toString());
+          recordId: ref.id,
+          newValue: '${user.name} (${user.role})');
+      return ref.id;
     } catch (e) {
       throw Exception('createUser failed: $e');
     }
@@ -76,6 +84,17 @@ class FirestoreRepository {
     } catch (e) {
       throw Exception('getUser failed: $e');
     }
+  }
+
+  Future<AppUser?> getUserByEmail(String email) async {
+    final query = await _users.where('email', isEqualTo: email).limit(1).get();
+    if (query.docs.isEmpty) return null;
+    return AppUser.fromFirestore(query.docs.first);
+  }
+
+  Future<AppUser?> getUserById(String uid) async {
+    final doc = await _users.doc(uid).get();
+    return doc.exists ? AppUser.fromFirestore(doc) : null;
   }
 
   Future<void> updateUserRole(String uid, UserRole role) async {
@@ -97,17 +116,23 @@ class FirestoreRepository {
     await _users.doc(uid).update({'fcmToken': token});
   }
 
-  Future<void> deleteUser(String uid) async {
+  Future<void> deleteUser(String userId) async {
     try {
-      await _users.doc(uid).delete();
+      await _users.doc(userId).delete();
+      // Also delete associated credentials
+      try {
+        await _db.collection('userCredentials').doc(userId).delete();
+      } catch (e) {
+        print('Note: userCredentials not found for deleted user');
+      }
       await _writeAuditLog(
-          action: 'Delete', collection: 'users', recordId: uid);
+          action: 'Delete', collection: 'users', recordId: userId);
     } catch (e) {
       throw Exception('deleteUser failed: $e');
     }
   }
 
-  Stream<List<AppUser>> streamAllUsers() => _users.snapshots().map(
+  Stream<List<AppUser>> streamAllUsers() => _users.orderBy('name').snapshots().map(
       (s) => s.docs.map((d) => AppUser.fromFirestore(d)).toList());
 
   /// Fetch all users with a given role — used to find PM / warehouse recipients for notifications.
@@ -269,68 +294,6 @@ class FirestoreRepository {
           newValue: newLocationId);
     } catch (e) {
       throw Exception('updateInventoryLocation failed: $e');
-    }
-  }
-
-  // =========================================================================
-  // USERS
-  // =========================================================================
-
-  CollectionReference<Map<String, dynamic>> get _users =>
-      _db.collection('users');
-
-  Future<AppUser?> getUserByEmail(String email) async {
-    final query = await _users.where('email', isEqualTo: email).limit(1).get();
-    if (query.docs.isEmpty) return null;
-    return AppUser.fromFirestore(query.docs.first);
-  }
-
-  Future<AppUser?> getUserById(String uid) async {
-    final doc = await _users.doc(uid).get();
-    return doc.exists ? AppUser.fromFirestore(doc) : null;
-  }
-
-  Stream<List<AppUser>> streamAllUsers() =>
-      _users.orderBy('name').snapshots().map(
-          (s) => s.docs.map((d) => AppUser.fromFirestore(d)).toList());
-
-  Future<String> createUser(AppUser user) async {
-    try {
-      final dup = await _users
-          .where('email', isEqualTo: user.email)
-          .limit(1)
-          .get();
-      if (dup.docs.isNotEmpty) {
-        throw Exception('User with email "${user.email}" already exists.');
-      }
-      final ref = await _users.add(user.toFirestore());
-      await _writeAuditLog(
-          action: 'Insert',
-          collection: 'users',
-          recordId: ref.id,
-          newValue: '${user.name} (${user.role})');
-      return ref.id;
-    } catch (e) {
-      throw Exception('createUser failed: $e');
-    }
-  }
-
-  Future<void> deleteUser(String userId) async {
-    try {
-      await _users.doc(userId).delete();
-      // Also delete associated credentials
-      try {
-        await _db.collection('userCredentials').doc(userId).delete();
-      } catch (e) {
-        print('Note: userCredentials not found for deleted user');
-      }
-      await _writeAuditLog(
-          action: 'Delete',
-          collection: 'users',
-          recordId: userId,
-          newValue: 'User deleted');
-    } catch (e) {
-      throw Exception('deleteUser failed: $e');
     }
   }
 
