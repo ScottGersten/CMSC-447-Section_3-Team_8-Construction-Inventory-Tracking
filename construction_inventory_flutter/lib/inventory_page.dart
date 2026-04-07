@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'models/app_user.dart';
+import 'models/material.dart' as material_model;
+import 'repositories/firestore_repository.dart';
 
 class InventoryPage extends StatefulWidget {
   final AppUser? currentUser;
@@ -13,22 +14,71 @@ class InventoryPage extends StatefulWidget {
 
 class _InventoryPageState extends State<InventoryPage> {
   final TextEditingController _itemController = TextEditingController();
-  final CollectionReference _materials = FirebaseFirestore.instance.collection('materials');
+  late FirestoreRepository _repository;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository = FirestoreRepository();
+  }
+
+  @override
+  void dispose() {
+    _itemController.dispose();
+    super.dispose();
+  }
 
   // Function to add an item
   Future<void> _addItem() async {
-    if (_itemController.text.isNotEmpty) {
-      await _materials.add({
-        "name": _itemController.text,
-        "timestamp": FieldValue.serverTimestamp(),
-      });
+    if (_itemController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a material name')),
+      );
+      return;
+    }
+
+    try {
+      final material = material_model.Material(
+        materialId: '',
+        name: _itemController.text.trim(),
+        category: material_model.MaterialCategory.materials,
+        unitOfMeasure: 'unit',
+        unitCost: 0.0,
+      );
+      
+      await _repository.createMaterial(material);
       _itemController.clear();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Material added successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
   // Function to delete an item
   Future<void> _deleteItem(String id) async {
-    await _materials.doc(id).delete();
+    try {
+      await _repository.deleteMaterial(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Material deleted successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   void _logout() {
@@ -162,18 +212,30 @@ class _InventoryPageState extends State<InventoryPage> {
             ),
           ),
           Expanded(
-            child: StreamBuilder(
-              stream: _materials.orderBy('timestamp', descending: true).snapshots(),
-              builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                
+            child: StreamBuilder<List<material_model.Material>>(
+              stream: _repository.streamAllMaterials(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+
+                final materials = snapshot.data ?? [];
+                if (materials.isEmpty) {
+                  return const Center(child: Text('No materials found'));
+                }
+
                 return ListView(
-                  children: snapshot.data!.docs.map((doc) {
+                  children: materials.map((material) {
                     return ListTile(
-                      title: Text(doc['name']),
+                      title: Text(material.name),
+                      subtitle: Text(material.description ?? ''),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _deleteItem(doc.id),
+                        onPressed: () => _deleteItem(material.materialId),
                       ),
                     );
                   }).toList(),

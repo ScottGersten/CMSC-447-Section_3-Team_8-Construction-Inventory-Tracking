@@ -207,6 +207,19 @@ class FirestoreRepository {
     return doc.exists ? Material.fromFirestore(doc) : null;
   }
 
+  Future<void> deleteMaterial(String materialId) async {
+    try {
+      await _materials.doc(materialId).delete();
+      await _writeAuditLog(
+          action: 'Delete',
+          collection: 'materials',
+          recordId: materialId,
+          newValue: 'Material deleted');
+    } catch (e) {
+      throw Exception('deleteMaterial failed: $e');
+    }
+  }
+
   Stream<List<Material>> streamAllMaterials() =>
       _materials.orderBy('name').snapshots().map(
           (s) => s.docs.map((d) => Material.fromFirestore(d)).toList());
