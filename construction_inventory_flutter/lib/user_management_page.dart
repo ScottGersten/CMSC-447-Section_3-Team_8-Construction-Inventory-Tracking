@@ -69,7 +69,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _selectedRole = UserRole.fieldCrew;
 
       if (mounted) {
-        _showMessage('User "${name}" created successfully!');
+        _showMessage('User "$name" created successfully!');
       }
     } catch (e) {
       _showMessage('Error: $e', isError: true);
@@ -209,7 +209,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   AbsorbPointer(
                     absorbing: _isLoading,
                     child: DropdownButtonFormField<UserRole>(
-                      value: _selectedRole,
+                      initialValue: _selectedRole,
                       decoration: const InputDecoration(
                         labelText: 'User Role',
                         border: OutlineInputBorder(),

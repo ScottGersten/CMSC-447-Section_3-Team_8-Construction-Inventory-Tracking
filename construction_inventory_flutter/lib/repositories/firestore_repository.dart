@@ -493,7 +493,7 @@ class FirestoreRepository {
     try {
       await _materialRequests.doc(requestId).update({
         'status': _requestStatusStr(status),
-        if (quantityFulfilled != null) 'quantityFulfilled': quantityFulfilled,
+        'quantityFulfilled': ?quantityFulfilled,
       });
     } catch (e) {
       throw Exception('updateRequestStatus failed: $e');
@@ -716,8 +716,8 @@ class FirestoreRepository {
       'action': action,
       'tableAffected': collection,
       'recordId': recordId,
-      if (oldValue != null) 'oldValue': oldValue,
-      if (newValue != null) 'newValue': newValue,
+      'oldValue': ?oldValue,
+      'newValue': ?newValue,
       'changedAt': FieldValue.serverTimestamp(),
     });
   }
