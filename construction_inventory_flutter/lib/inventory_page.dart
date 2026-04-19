@@ -165,8 +165,26 @@ class _InventoryPageState extends State<InventoryPage> {
     final thresholdEditController = TextEditingController(
       text: item.lowStockThreshold.toStringAsFixed(2),
     );
-    InventoryStatus selectedStatus = item.status;
+    final availableQuantityController = TextEditingController(
+      text: item.availableQuantity.toStringAsFixed(2),
+    );
     bool isEditing = false;
+
+    // Function to update available quantity display
+    void updateAvailableQuantity() {
+      try {
+        final quantity = double.tryParse(quantityEditController.text) ?? 0;
+        final reserved = double.tryParse(reservedEditController.text) ?? 0;
+        final available = quantity - reserved;
+        availableQuantityController.text = available.toStringAsFixed(2);
+      } catch (e) {
+        availableQuantityController.text = '0.00';
+      }
+    }
+
+    // Add listeners to update available quantity
+    quantityEditController.addListener(updateAvailableQuantity);
+    reservedEditController.addListener(updateAvailableQuantity);
 
     showDialog(
       context: context,
@@ -212,27 +230,17 @@ class _InventoryPageState extends State<InventoryPage> {
                         prefixIcon: Icon(Icons.warning),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<InventoryStatus>(
-                      value: selectedStatus,
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: availableQuantityController,
+                      enabled: false,
                       decoration: const InputDecoration(
-                        labelText: 'Status',
+                        labelText: 'Available Quantity (Read-only)',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.check_circle),
+                        filled: true,
+                        fillColor: Color(0xFFF5F5F5),
                       ),
-                      items: InventoryStatus.values
-                          .map((status) => DropdownMenuItem(
-                                value: status,
-                                child: Text(_statusDisplayName(status)),
-                              ))
-                          .toList(),
-                      onChanged: isEditing
-                          ? null
-                          : (status) {
-                              if (status != null) {
-                                setDialogState(() => selectedStatus = status);
-                              }
-                            },
                     ),
                   ],
                 ),
@@ -245,6 +253,7 @@ class _InventoryPageState extends State<InventoryPage> {
                           quantityEditController.dispose();
                           reservedEditController.dispose();
                           thresholdEditController.dispose();
+                          availableQuantityController.dispose();
                           Navigator.pop(context);
                         },
                   child: const Text('Cancel'),
@@ -271,16 +280,28 @@ class _InventoryPageState extends State<InventoryPage> {
                               return;
                             }
 
+                            // Calculate status automatically based on available quantity
+                            final availableQty = quantity - reserved;
+                            final calculatedStatus = availableQty == 0
+                                ? InventoryStatus.outOfStock
+                                : availableQty <= threshold
+                                    ? InventoryStatus.lowStock
+                                    : InventoryStatus.inStock;
+
                             await _repository.updateInventoryItem(
                               inventoryItemId: item.inventoryItemId,
                               quantity: quantity,
                               reservedQuantity: reserved,
                               lowStockThreshold: threshold,
-                              status: selectedStatus,
+                              status: calculatedStatus,
                             );
 
                             if (mounted) {
                               _showMessage('Inventory item updated successfully');
+                              quantityEditController.dispose();
+                              reservedEditController.dispose();
+                              thresholdEditController.dispose();
+                              availableQuantityController.dispose();
                               Navigator.pop(context);
                             }
                           } catch (e) {
@@ -306,6 +327,64 @@ class _InventoryPageState extends State<InventoryPage> {
         );
       },
     );
+  }
+
+  // Function to increment quantity by 1
+  Future<void> _incrementQuantity(InventoryItem item) async {
+    try {
+      final newQuantity = item.quantity + 1;
+      final availableQty = newQuantity - item.reservedQuantity;
+      final calculatedStatus = availableQty == 0
+          ? InventoryStatus.outOfStock
+          : availableQty <= item.lowStockThreshold
+              ? InventoryStatus.lowStock
+              : InventoryStatus.inStock;
+      await _repository.updateInventoryItem(
+        inventoryItemId: item.inventoryItemId,
+        quantity: newQuantity,
+        reservedQuantity: item.reservedQuantity,
+        lowStockThreshold: item.lowStockThreshold,
+        status: calculatedStatus,
+      );
+      if (mounted) {
+        _showMessage('Quantity incremented to ${newQuantity.toStringAsFixed(2)}');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showMessage('Error incrementing quantity: $e', isError: true);
+      }
+    }
+  }
+
+  // Function to decrement quantity by 1
+  Future<void> _decrementQuantity(InventoryItem item) async {
+    try {
+      if (item.quantity <= 0) {
+        _showMessage('Quantity cannot go below 0', isError: true);
+        return;
+      }
+      final newQuantity = item.quantity - 1;
+      final availableQty = newQuantity - item.reservedQuantity;
+      final calculatedStatus = availableQty == 0
+          ? InventoryStatus.outOfStock
+          : availableQty <= item.lowStockThreshold
+              ? InventoryStatus.lowStock
+              : InventoryStatus.inStock;
+      await _repository.updateInventoryItem(
+        inventoryItemId: item.inventoryItemId,
+        quantity: newQuantity,
+        reservedQuantity: item.reservedQuantity,
+        lowStockThreshold: item.lowStockThreshold,
+        status: calculatedStatus,
+      );
+      if (mounted) {
+        _showMessage('Quantity decremented to ${newQuantity.toStringAsFixed(2)}');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showMessage('Error decrementing quantity: $e', isError: true);
+      }
+    }
   }
 
   // Function to create a new material
@@ -360,6 +439,59 @@ class _InventoryPageState extends State<InventoryPage> {
       if (mounted) {
         setState(() => _creatingMaterial = false);
       }
+    }
+  }
+
+  // Group inventory items by status
+  Map<InventoryStatus, List<InventoryItem>> _groupItemsByStatus(
+      List<InventoryItem> items) {
+    final grouped = <InventoryStatus, List<InventoryItem>>{};
+
+    for (final item in items) {
+      if (!grouped.containsKey(item.status)) {
+        grouped[item.status] = [];
+      }
+      grouped[item.status]!.add(item);
+    }
+
+    return grouped;
+  }
+
+  // Build a list with headers and grouped items
+  List<dynamic> _buildGroupedList(
+      Map<InventoryStatus, List<InventoryItem>> grouped) {
+    final result = <dynamic>[];
+
+    // Order: outOfStock, lowStock, inStock
+    final order = [
+      InventoryStatus.outOfStock,
+      InventoryStatus.lowStock,
+      InventoryStatus.inStock,
+    ];
+
+    for (final status in order) {
+      if (grouped.containsKey(status) && grouped[status]!.isNotEmpty) {
+        // Add header
+        final headerText = _getStatusHeaderText(status);
+        result.add(headerText);
+
+        // Add items for this status
+        result.addAll(grouped[status]!);
+      }
+    }
+
+    return result;
+  }
+
+  // Get header text for status
+  String _getStatusHeaderText(InventoryStatus status) {
+    switch (status) {
+      case InventoryStatus.outOfStock:
+        return '🔴 Out of Stock';
+      case InventoryStatus.lowStock:
+        return '🟡 Low Stock';
+      case InventoryStatus.inStock:
+        return '🟢 In Stock';
     }
   }
 
@@ -889,19 +1021,41 @@ class _InventoryPageState extends State<InventoryPage> {
                               );
                             }
 
+                            // Group items by status
+                            final groupedItems = _groupItemsByStatus(items);
+                            final displayItems = _buildGroupedList(groupedItems);
+
                             return ListView.builder(
                               padding: const EdgeInsets.all(8),
-                              itemCount: items.length,
+                              itemCount: displayItems.length,
                               itemBuilder: (context, index) {
-                                final item = items[index];
+                                final item = displayItems[index];
+                                
+                                if (item is String) {
+                                  // This is a header
+                                  return Padding(
+                                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                                    child: Text(
+                                      item,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                
+                                // This is an inventory item
+                                final inventoryItem = item as InventoryItem;
                                 return FutureBuilder<
                                     Map<String, String?>>(
                                   future: Future.wait([
                                     _repository
-                                        .getMaterial(item.materialId)
+                                        .getMaterial(inventoryItem.materialId)
                                         .then((m) => m?.name ?? 'Unknown'),
                                     _repository
-                                        .getLocation(item.locationId)
+                                        .getLocation(inventoryItem.locationId)
                                         .then((l) => l?.name ?? 'Unknown'),
                                   ]).then((results) => {
                                     'material': results[0],
@@ -919,21 +1073,17 @@ class _InventoryPageState extends State<InventoryPage> {
                                       child: ListTile(
                                         leading: CircleAvatar(
                                           backgroundColor:
-                                              item.status ==
-                                                      InventoryStatus.outOfStock
+                                              inventoryItem.availableQuantity == 0
                                                   ? Colors.red
-                                                  : item.status ==
-                                                          InventoryStatus
-                                                              .lowStock
-                                                      ? Colors.orange
+                                                  : inventoryItem.availableQuantity <=
+                                                          inventoryItem.lowStockThreshold
+                                                      ? Colors.yellow[700]
                                                       : Colors.green,
                                           child: Icon(
-                                            item.status ==
-                                                    InventoryStatus.outOfStock
-                                                ? Icons.block
-                                                : item.status ==
-                                                        InventoryStatus
-                                                            .lowStock
+                                            inventoryItem.availableQuantity == 0
+                                                ? Icons.close
+                                                : inventoryItem.availableQuantity <=
+                                                        inventoryItem.lowStockThreshold
                                                     ? Icons.warning
                                                     : Icons.check_circle,
                                             color: Colors.white,
@@ -949,13 +1099,52 @@ class _InventoryPageState extends State<InventoryPage> {
                                               style: const TextStyle(
                                                   fontSize: 12),
                                             ),
-                                            Text(
-                                              'Qty: ${item.quantity.toStringAsFixed(2)} | Reserved: ${item.reservedQuantity.toStringAsFixed(2)} | Available: ${item.availableQuantity.toStringAsFixed(2)}',
-                                              style: const TextStyle(
-                                                  fontSize: 11),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    'Qty: ${inventoryItem.quantity.toStringAsFixed(2)} | Reserved: ${inventoryItem.reservedQuantity.toStringAsFixed(2)} | Available: ${inventoryItem.availableQuantity.toStringAsFixed(2)}',
+                                                    style: const TextStyle(
+                                                        fontSize: 11),
+                                                  ),
+                                                ),
+                                                SizedBox(
+                                                  width: 100,
+                                                  child: Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment.end,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                            Icons.remove),
+                                                        iconSize: 28,
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        onPressed: () =>
+                                                            _decrementQuantity(
+                                                                inventoryItem),
+                                                      ),
+                                                      IconButton(
+                                                        icon:
+                                                            const Icon(Icons.add),
+                                                        iconSize: 28,
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        onPressed: () =>
+                                                            _incrementQuantity(
+                                                                inventoryItem),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                             Text(
-                                              'Threshold: ${item.lowStockThreshold.toStringAsFixed(2)} | Status: ${_statusDisplayName(item.status)}',
+                                              'Threshold: ${inventoryItem.lowStockThreshold.toStringAsFixed(2)} | Status: ${_statusDisplayName(inventoryItem.status)}',
                                               style: const TextStyle(
                                                 fontSize: 11,
                                                 fontStyle: FontStyle.italic,
@@ -980,7 +1169,7 @@ class _InventoryPageState extends State<InventoryPage> {
                                                   onTap: () =>
                                                       Future.delayed(
                                                         const Duration(milliseconds: 100),
-                                                        () => _editInventoryItem(item),
+                                                        () => _editInventoryItem(inventoryItem),
                                                       ),
                                                 ),
                                                 PopupMenuItem(
@@ -989,7 +1178,7 @@ class _InventoryPageState extends State<InventoryPage> {
                                                       Future.delayed(
                                                         const Duration(milliseconds: 100),
                                                         () => _deleteInventoryItem(
-                                                            item.inventoryItemId),
+                                                            inventoryItem.inventoryItemId),
                                                       ),
                                                 ),
                                               ],
