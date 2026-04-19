@@ -119,6 +119,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   void _showMessage(String message, {bool isError = false}) {
     setState(() => _message = message);
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),

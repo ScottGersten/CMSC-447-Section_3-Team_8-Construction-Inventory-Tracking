@@ -646,6 +646,7 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),

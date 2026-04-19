@@ -35,7 +35,9 @@ class InventoryItem {
       reservedQuantity: (data['reservedQuantity'] as num? ?? 0).toDouble(),
       lowStockThreshold: (data['lowStockThreshold'] as num).toDouble(),
       status: _statusFromString(data['status'] as String),
-      lastUpdatedAt: (data['lastUpdatedAt'] as Timestamp).toDate(),
+      lastUpdatedAt: data['lastUpdatedAt'] != null
+          ? (data['lastUpdatedAt'] as Timestamp).toDate()
+          : DateTime.now(),
     );
   }
 
