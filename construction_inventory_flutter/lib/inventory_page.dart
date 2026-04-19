@@ -804,6 +804,7 @@ class _InventoryPageState extends State<InventoryPage> {
           Expanded(
             child: DefaultTabController(
               length: 2,
+              initialIndex: 1,
               child: Column(
                 children: [
                   const TabBar(

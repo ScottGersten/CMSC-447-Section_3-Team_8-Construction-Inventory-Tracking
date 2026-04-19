@@ -155,6 +155,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     return DefaultTabController(
       length: 2,
+      initialIndex: 1,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('User Management'),

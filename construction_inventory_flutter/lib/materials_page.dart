@@ -452,6 +452,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
       ),
       body: DefaultTabController(
         length: 2,
+        initialIndex: 1,
         child: Column(
           children: [
             const TabBar(
