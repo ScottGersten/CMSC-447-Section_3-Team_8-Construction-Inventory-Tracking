@@ -294,19 +294,33 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             ),
                           ],
                         ),
-                        trailing: PopupMenuButton(
-                          itemBuilder: (context) => [
-                            if (user.role != UserRole.systemAdmin)
-                              PopupMenuItem(
-                                child: const Text('Delete'),
-                                onTap: () =>
-                                    Future.delayed(
-                                      const Duration(milliseconds: 100),
-                                      () => _deleteUser(user),
+                        trailing: user.role != UserRole.systemAdmin
+                            ? GestureDetector(
+                                onTapDown: (details) {
+                                  final position = details.globalPosition;
+                                  showMenu(
+                                    context: context,
+                                    position: RelativeRect.fromLTRB(
+                                      position.dx,
+                                      position.dy,
+                                      position.dx,
+                                      position.dy,
                                     ),
-                              ),
-                          ],
-                        ),
+                                    items: [
+                                      PopupMenuItem(
+                                        child: const Text('Delete'),
+                                        onTap: () =>
+                                            Future.delayed(
+                                              const Duration(milliseconds: 100),
+                                              () => _deleteUser(user),
+                                            ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                                child: const Icon(Icons.more_vert),
+                              )
+                            : null,
                       ),
                     );
                   },
