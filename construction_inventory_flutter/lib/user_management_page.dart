@@ -69,7 +69,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _selectedRole = UserRole.fieldCrew;
 
       if (mounted) {
-        _showMessage('User "${name}" created successfully!');
+        _showMessage('User "$name" created successfully!');
       }
     } catch (e) {
       _showMessage('Error: $e', isError: true);
@@ -119,6 +119,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   void _showMessage(String message, {bool isError = false}) {
     setState(() => _message = message);
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -155,6 +156,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     return DefaultTabController(
       length: 2,
+      initialIndex: 1,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('User Management'),
@@ -209,7 +211,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   AbsorbPointer(
                     absorbing: _isLoading,
                     child: DropdownButtonFormField<UserRole>(
-                      value: _selectedRole,
+                      initialValue: _selectedRole,
                       decoration: const InputDecoration(
                         labelText: 'User Role',
                         border: OutlineInputBorder(),
@@ -294,19 +296,33 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             ),
                           ],
                         ),
-                        trailing: PopupMenuButton(
-                          itemBuilder: (context) => [
-                            if (user.role != UserRole.systemAdmin)
-                              PopupMenuItem(
-                                child: const Text('Delete'),
-                                onTap: () =>
-                                    Future.delayed(
-                                      const Duration(milliseconds: 100),
-                                      () => _deleteUser(user),
+                        trailing: user.role != UserRole.systemAdmin
+                            ? GestureDetector(
+                                onTapDown: (details) {
+                                  final position = details.globalPosition;
+                                  showMenu(
+                                    context: context,
+                                    position: RelativeRect.fromLTRB(
+                                      position.dx,
+                                      position.dy,
+                                      position.dx,
+                                      position.dy,
                                     ),
-                              ),
-                          ],
-                        ),
+                                    items: [
+                                      PopupMenuItem(
+                                        child: const Text('Delete'),
+                                        onTap: () =>
+                                            Future.delayed(
+                                              const Duration(milliseconds: 100),
+                                              () => _deleteUser(user),
+                                            ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                                child: const Icon(Icons.more_vert),
+                              )
+                            : null,
                       ),
                     );
                   },

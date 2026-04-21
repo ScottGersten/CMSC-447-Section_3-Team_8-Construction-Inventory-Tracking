@@ -34,7 +34,7 @@ class Material {
           : MaterialCategory.materials,
       partNumber: data['partNumber'] as String?,
       manufacturer: data['manufacturer'] as String?,
-      unitOfMeasure: data['unitOfMeasure'] as String,
+      unitOfMeasure: (data['unitOfMeasure'] as String?) ?? 'unit',
       unitCost: (data['unitCost'] as num? ?? 0).toDouble(),
     );
   }
