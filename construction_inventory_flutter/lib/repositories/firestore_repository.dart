@@ -175,6 +175,66 @@ class FirestoreRepository {
           .snapshots()
           .map((s) => s.docs.map((d) => Location.fromFirestore(d)).toList());
 
+  Future<void> initializeSampleLocations() async {
+    try {
+      final existingLocations = await _locations.limit(1).get();
+      if (existingLocations.docs.isNotEmpty) {
+        return; // Sample locations already exist
+      }
+
+      final sampleLocations = [
+        Location(
+          locationId: '',
+          name: 'Main Warehouse',
+          type: LocationType.warehouse,
+          address: '123 Industrial Blvd, Industrial City, IC 12345',
+          notes: 'Primary warehouse for bulk storage',
+        ),
+        Location(
+          locationId: '',
+          name: 'Secondary Warehouse',
+          type: LocationType.warehouse,
+          address: '456 Storage Ave, Storage Town, ST 67890',
+          notes: 'Secondary warehouse for overflow',
+        ),
+        Location(
+          locationId: '',
+          name: 'North Jobsite',
+          type: LocationType.jobsite,
+          address: '789 Construction Lane, Build City, BC 11111',
+          notes: 'Active construction site - North Project',
+        ),
+        Location(
+          locationId: '',
+          name: 'South Jobsite',
+          type: LocationType.jobsite,
+          address: '321 Build Street, Project Town, PT 22222',
+          notes: 'Active construction site - South Project',
+        ),
+        Location(
+          locationId: '',
+          name: 'Equipment Yard',
+          type: LocationType.yard,
+          address: '654 Equipment Dr, Yard City, YC 33333',
+          notes: 'Outdoor storage yard for large equipment',
+        ),
+        Location(
+          locationId: '',
+          name: 'Supply Yard',
+          type: LocationType.yard,
+          address: '987 Supply Rd, Yard Town, YT 44444',
+          notes: 'Outdoor yard for material staging',
+        ),
+      ];
+
+      for (final location in sampleLocations) {
+        await createLocation(location);
+      }
+    } catch (e) {
+      print('Failed to initialize sample locations: $e');
+    }
+  }
+
   // =========================================================================
   // MATERIALS
   // =========================================================================
@@ -217,6 +277,19 @@ class FirestoreRepository {
           newValue: 'Material deleted');
     } catch (e) {
       throw Exception('deleteMaterial failed: $e');
+    }
+  }
+
+  Future<void> updateMaterial(String materialId, Material material) async {
+    try {
+      await _materials.doc(materialId).update(material.toFirestore());
+      await _writeAuditLog(
+          action: 'Update',
+          collection: 'materials',
+          recordId: materialId,
+          newValue: material.name);
+    } catch (e) {
+      throw Exception('updateMaterial failed: $e');
     }
   }
 
@@ -307,6 +380,45 @@ class FirestoreRepository {
           newValue: newLocationId);
     } catch (e) {
       throw Exception('updateInventoryLocation failed: $e');
+    }
+  }
+
+  Future<void> updateInventoryItem({
+    required String inventoryItemId,
+    required double quantity,
+    required double reservedQuantity,
+    required double lowStockThreshold,
+    required InventoryStatus status,
+  }) async {
+    try {
+      await _inventoryItems.doc(inventoryItemId).update({
+        'quantity': quantity,
+        'reservedQuantity': reservedQuantity,
+        'availableQuantity': quantity - reservedQuantity,
+        'lowStockThreshold': lowStockThreshold,
+        'status': _statusStr(status),
+        'lastUpdatedAt': FieldValue.serverTimestamp(),
+      });
+      await _writeAuditLog(
+          action: 'Update',
+          collection: 'inventoryItems',
+          recordId: inventoryItemId,
+          newValue: 'quantity:$quantity, reserved:$reservedQuantity');
+    } catch (e) {
+      throw Exception('updateInventoryItem failed: $e');
+    }
+  }
+
+  Future<void> deleteInventoryItem(String inventoryItemId) async {
+    try {
+      await _inventoryItems.doc(inventoryItemId).delete();
+      await _writeAuditLog(
+          action: 'Delete',
+          collection: 'inventoryItems',
+          recordId: inventoryItemId,
+          newValue: 'Inventory item deleted');
+    } catch (e) {
+      throw Exception('deleteInventoryItem failed: $e');
     }
   }
 
@@ -716,8 +828,8 @@ class FirestoreRepository {
       'action': action,
       'tableAffected': collection,
       'recordId': recordId,
-      'oldValue': ?oldValue,
-      'newValue': ?newValue,
+      if (oldValue != null) 'oldValue': oldValue,
+      if (newValue != null) 'newValue': newValue,
       'changedAt': FieldValue.serverTimestamp(),
     });
   }

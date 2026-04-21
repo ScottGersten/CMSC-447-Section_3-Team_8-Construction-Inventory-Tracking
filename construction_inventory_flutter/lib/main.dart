@@ -4,13 +4,20 @@ import 'firebase_options.dart';
 import 'inventory_page.dart';
 import 'login_page.dart';
 import 'user_management_page.dart';
+import 'materials_page.dart';
 import 'models/app_user.dart';
+import 'repositories/firestore_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Initialize sample locations
+  final repository = FirestoreRepository();
+  await repository.initializeSampleLocations();
+  
   runApp(const MyApp());
 }
 
@@ -40,6 +47,10 @@ class MyApp extends StatelessWidget {
             );
           }
           return UserManagementPage(currentUser: user);
+        },
+        '/materials': (context) {
+          final user = ModalRoute.of(context)?.settings.arguments as AppUser?;
+          return MaterialsPage(currentUser: user);
         },
       },
     );
