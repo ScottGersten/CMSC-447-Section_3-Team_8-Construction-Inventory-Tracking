@@ -3,47 +3,55 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'inventory_page.dart';
 import 'login_page.dart';
+import 'user_management_page.dart';
+import 'materials_page.dart';
+import 'models/app_user.dart';
+import 'repositories/firestore_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Initialize sample locations
+  final repository = FirestoreRepository();
+  await repository.initializeSampleLocations();
+  
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Construction Inventory',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        //colorScheme: .fromSeed(seedColor: Colors.deepPurple),
         colorScheme: .fromSeed(seedColor: Colors.green),
       ),
-      //home: const MyHomePage(title: 'Flutter Demo Home Page'),
       initialRoute: '/login',
       routes: {
-      '/login': (context) => const LoginPage(),
-      '/inventory': (context) => const InventoryPage(),
+        '/login': (context) => const LoginPage(),
+        '/inventory': (context) {
+          final user = ModalRoute.of(context)?.settings.arguments as AppUser?;
+          return InventoryPage(currentUser: user);
+        },
+        '/user-management': (context) {
+          final user = ModalRoute.of(context)?.settings.arguments as AppUser?;
+          if (user == null) {
+            return Scaffold(
+              appBar: AppBar(title: const Text('Error')),
+              body: const Center(child: Text('User not found')),
+            );
+          }
+          return UserManagementPage(currentUser: user);
+        },
+        '/materials': (context) {
+          final user = ModalRoute.of(context)?.settings.arguments as AppUser?;
+          return MaterialsPage(currentUser: user);
+        },
       },
     );
   }
