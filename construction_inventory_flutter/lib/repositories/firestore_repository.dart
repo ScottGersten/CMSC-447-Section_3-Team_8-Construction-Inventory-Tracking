@@ -152,7 +152,6 @@ class FirestoreRepository {
   Stream<List<AppUser>> streamAllUsers() => _users.orderBy('name').snapshots().map(
       (s) => s.docs.map((d) => AppUser.fromFirestore(d)).toList());
 
-  /// Fetch all users with a given role — used to find PM / warehouse recipients for notifications.
   Future<List<AppUser>> getUsersByRole(UserRole role) async {
     final snap =
         await _users.where('role', isEqualTo: _roleStr(role)).get();
@@ -310,6 +309,19 @@ class FirestoreRepository {
     }
   }
 
+  Future<void> approveMaterial(String materialId) async {
+    try {
+      await _materials.doc(materialId).update({'isApproved': true});
+      await _writeAuditLog(
+          action: 'Update',
+          collection: 'materials',
+          recordId: materialId,
+          newValue: 'Material Approved');
+    } catch (e) {
+      throw Exception('approveMaterial failed: $e');
+    }
+  }
+
   Stream<List<Material>> streamAllMaterials() =>
       _materials.orderBy('name').snapshots().map(
           (s) => s.docs.map((d) => Material.fromFirestore(d)).toList());
@@ -356,8 +368,6 @@ class FirestoreRepository {
         (s) => s.docs.map((d) => InventoryItem.fromFirestore(d)).toList());
   }
 
-  /// Atomically adjusts quantity and recomputes status.
-  /// Uses a Firestore transaction to handle concurrent writes safely (SRS 2.4.1).
   Future<void> updateQuantity({
     required String inventoryItemId,
     required double delta,
@@ -370,7 +380,6 @@ class FirestoreRepository {
         if (!snap.exists) throw Exception('Inventory item not found.');
         final current = InventoryItem.fromFirestore(snap);
         final newQty = current.quantity + delta;
-        // Business rule: never below zero (SRS Section 3)
         if (newQty < 0) {
           throw Exception(
               'Insufficient stock: cannot subtract ${delta.abs()} from ${current.quantity}.');
@@ -503,8 +512,7 @@ class FirestoreRepository {
   }
 
   // =========================================================================
-  // AUDIT LOGS
-  // PURCHASE ORDERS  (Use Case 6 — PM uploads pay order PDF)
+  // AUDIT LOGS / POs / DELIVERIES / SLIPS / LOGS / PROJECTS (Unchanged)
   // =========================================================================
 
   Future<String> createPurchaseOrder(PurchaseOrder po) async {
@@ -521,7 +529,6 @@ class FirestoreRepository {
     }
   }
 
-  /// Attaches the Cloud Storage path after PDF upload completes (SRS 4.1.1).
   Future<void> attachPdfToPurchaseOrder(String poId, String storagePath) async {
     try {
       await _purchaseOrders
@@ -567,10 +574,6 @@ class FirestoreRepository {
     return snap.docs.map((d) => PurchaseOrderItem.fromFirestore(d)).toList();
   }
 
-  // =========================================================================
-  // DELIVERIES
-  // =========================================================================
-
   Future<String> storeDeliveryRecord(Delivery delivery) async {
     try {
       final ref = await _deliveries.add(delivery.toFirestore());
@@ -593,10 +596,6 @@ class FirestoreRepository {
         .map((s) => s.docs.map((d) => Delivery.fromFirestore(d)).toList());
   }
 
-  // =========================================================================
-  // PACKING SLIP ITEMS  (OCR line items — Use Case 3)
-  // =========================================================================
-
   Future<String> savePackingSlipItem(PackingSlipItem item) async {
     try {
       final ref = await _packingSlipItems.add(item.toFirestore());
@@ -606,7 +605,6 @@ class FirestoreRepository {
     }
   }
 
-  /// Marks an item as manually verified after user review in the UI.
   Future<void> markPackingSlipItemVerified(String itemId) async {
     await _packingSlipItems.doc(itemId).update({'isManuallyVerified': true});
   }
@@ -626,10 +624,6 @@ class FirestoreRepository {
           .map((s) => s.docs
               .map((d) => PackingSlipItem.fromFirestore(d))
               .toList());
-
-  // =========================================================================
-  // MATERIAL REQUESTS
-  // =========================================================================
 
   Future<String> logMaterialRequest(MaterialRequest request) async {
     if (request.quantityRequested <= 0) {
@@ -656,7 +650,7 @@ class FirestoreRepository {
     try {
       await _materialRequests.doc(requestId).update({
         'status': _requestStatusStr(status),
-        'quantityFulfilled': ?quantityFulfilled,
+        if (quantityFulfilled != null) 'quantityFulfilled': quantityFulfilled,
       });
     } catch (e) {
       throw Exception('updateRequestStatus failed: $e');
@@ -678,10 +672,6 @@ class FirestoreRepository {
     return q.snapshots().map(
         (s) => s.docs.map((d) => MaterialRequest.fromFirestore(d)).toList());
   }
-
-  // =========================================================================
-  // TRANSFER LOGS  (Use Case 4)
-  // =========================================================================
 
   Future<String> createTransferLog(TransferLog log) async {
     if (log.quantity <= 0) throw Exception('Transfer quantity must be > 0');
@@ -706,10 +696,6 @@ class FirestoreRepository {
     return q.snapshots().map(
         (s) => s.docs.map((d) => TransferLog.fromFirestore(d)).toList());
   }
-
-  // =========================================================================
-  // INSTALLATION LOGS
-  // =========================================================================
 
   Future<String> createInstallationLog(InstallationLog log) async {
     if (log.quantityInstalled <= 0) {
@@ -736,10 +722,6 @@ class FirestoreRepository {
         .get();
     return snap.docs.map((d) => InstallationLog.fromFirestore(d)).toList();
   }
-
-  // =========================================================================
-  // PROJECTS
-  // =========================================================================
 
   Future<String> createProject(Project project) async {
     try {
@@ -824,12 +806,6 @@ class FirestoreRepository {
     return snap.docs.map((d) => ProjectMaterial.fromFirestore(d)).toList();
   }
 
-  // =========================================================================
-  // NOTIFICATIONS  (SRS 4.3.x)
-  // =========================================================================
-
-  /// Writes a notification document. A Firebase Cloud Function should be
-  /// set up to listen on this collection and dispatch via FCM.
   Future<void> writeNotification({
     required String recipientUserId,
     required String message,
@@ -848,7 +824,6 @@ class FirestoreRepository {
     }
   }
 
-  /// Marks a notification read and records the timestamp (SRS 6.3.5).
   Future<void> markNotificationRead(String notificationId) async {
     await _notifications.doc(notificationId).update({
       'isRead': true,
@@ -863,10 +838,6 @@ class FirestoreRepository {
           .snapshots()
           .map((s) =>
               s.docs.map((d) => AppNotification.fromFirestore(d)).toList());
-
-  // =========================================================================
-  // AUDIT LOGS  (immutable — no update/delete exposed, SRS 6.3.2)
-  // =========================================================================
 
   Future<void> _writeAuditLog({
     required String action,

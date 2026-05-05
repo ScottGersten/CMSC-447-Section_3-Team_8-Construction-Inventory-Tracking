@@ -11,6 +11,7 @@ class Material {
   final String? manufacturer;
   final String unitOfMeasure;
   final double unitCost;
+  final bool isApproved;
 
   Material({
     required this.materialId,
@@ -21,6 +22,7 @@ class Material {
     this.manufacturer,
     required this.unitOfMeasure,
     this.unitCost = 0.0,
+    this.isApproved = true,
   });
 
   factory Material.fromFirestore(DocumentSnapshot doc) {
@@ -36,6 +38,7 @@ class Material {
       manufacturer: data['manufacturer'] as String?,
       unitOfMeasure: (data['unitOfMeasure'] as String?) ?? 'unit',
       unitCost: (data['unitCost'] as num? ?? 0).toDouble(),
+      isApproved: data['isApproved'] as bool? ?? true, // Default true for legacy data
     );
   }
 
@@ -49,6 +52,7 @@ class Material {
       if (manufacturer != null) 'manufacturer': manufacturer,
       'unitOfMeasure': unitOfMeasure,
       'unitCost': unitCost,
+      'isApproved': isApproved,
     };
   }
 }
