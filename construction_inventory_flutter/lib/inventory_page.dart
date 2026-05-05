@@ -687,6 +687,22 @@ class _InventoryPageState extends State<InventoryPage> {
     );
   }
 
+  void _openScanPage() {
+    Navigator.pushNamed(
+      context,
+      '/scan',
+      arguments: widget.currentUser,
+    );
+  }
+
+  void _openSavedDocuments() {
+    Navigator.pushNamed(
+      context,
+      '/documents',
+      arguments: widget.currentUser,
+    );
+  }
+
   String _roleDisplayName(UserRole role) {
     switch (role) {
       case UserRole.fieldCrew:
@@ -714,6 +730,10 @@ class _InventoryPageState extends State<InventoryPage> {
                 _openUserManagement();
               } else if (value == 'materials') {
                 _openMaterialsManagement();
+              } else if (value == 'scan') {
+                _openScanPage();
+              } else if (value == 'documents') {
+                _openSavedDocuments();
               } else if (value == 'logout') {
                 _logout();
               }
@@ -724,6 +744,22 @@ class _InventoryPageState extends State<InventoryPage> {
                 child: ListTile(
                   leading: Icon(Icons.shopping_bag),
                   title: Text('Manage Materials'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'scan',
+                child: ListTile(
+                  leading: Icon(Icons.camera_alt),
+                  title: Text('Scan Documents'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'documents',
+                child: ListTile(
+                  leading: Icon(Icons.folder_open),
+                  title: Text('Saved Documents'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),

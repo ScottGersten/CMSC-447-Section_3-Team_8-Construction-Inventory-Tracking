@@ -576,6 +576,14 @@ class FirestoreRepository {
     return snap.docs.map((d) => PackingSlipItem.fromFirestore(d)).toList();
   }
 
+  Stream<List<PackingSlipItem>> streamPackingSlipItems() =>
+      _packingSlipItems
+          .orderBy('parsedConfidenceScore', descending: false)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => PackingSlipItem.fromFirestore(d))
+              .toList());
+
   // =========================================================================
   // MATERIAL REQUESTS
   // =========================================================================
