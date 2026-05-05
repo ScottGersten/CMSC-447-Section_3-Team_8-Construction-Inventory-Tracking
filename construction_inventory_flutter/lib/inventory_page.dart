@@ -41,6 +41,14 @@ class _InventoryPageState extends State<InventoryPage> {
   void initState() {
     super.initState();
     _repository = FirestoreRepository();
+    
+    // Set default inventory owner based on role
+    if (widget.currentUser != null) {
+      final role = widget.currentUser!.role;
+      if (role == UserRole.fieldCrew || role == UserRole.warehouseStaff) {
+        _selectedInventoryOwner = InventoryOwner.fieldCrew;
+      }
+    }
   }
 
   @override
@@ -54,6 +62,19 @@ class _InventoryPageState extends State<InventoryPage> {
     _materialManufacturerController.dispose();
     _materialUnitCostController.dispose();
     super.dispose();
+  }
+
+  // --- Role Check Method ---
+  bool _canModify(InventoryOwner owner) {
+    final role = widget.currentUser?.role;
+    if (role == UserRole.systemAdmin) return true;
+    if (role == UserRole.projectManager) {
+      return owner == InventoryOwner.projectManager;
+    }
+    if (role == UserRole.fieldCrew || role == UserRole.warehouseStaff) {
+      return owner == InventoryOwner.fieldCrew;
+    }
+    return false;
   }
 
   // Function to add inventory item
@@ -764,6 +785,31 @@ class _InventoryPageState extends State<InventoryPage> {
   // ---------------------------------------------------------------------------
 
   Widget _buildAddInventoryForm() {
+    if (!_canModify(_selectedInventoryOwner)) {
+      final targetDb = _selectedInventoryOwner == InventoryOwner.projectManager
+          ? 'Project Manager'
+          : 'Field Crew';
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.security, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(
+              'Access Denied',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You do not have permission to add items\nto the $targetDb database.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1056,36 +1102,38 @@ class _InventoryPageState extends State<InventoryPage> {
                                     ),
                                   ],
                                 ),
-                                trailing: GestureDetector(
-                                  onTapDown: (details) {
-                                    final position = details.globalPosition;
-                                    showMenu(
-                                      context: context,
-                                      position: RelativeRect.fromLTRB(position.dx,
-                                          position.dy, position.dx, position.dy),
-                                      items: [
-                                        PopupMenuItem(
-                                          child: const Text('Edit'),
-                                          onTap: () => Future.delayed(
-                                            const Duration(milliseconds: 100),
-                                            () => _editInventoryItem(
-                                                inventoryItem, _selectedInventoryOwner),
-                                          ),
-                                        ),
-                                        PopupMenuItem(
-                                          child: const Text('Delete'),
-                                          onTap: () => Future.delayed(
-                                            const Duration(milliseconds: 100),
-                                            () => _deleteInventoryItem(
-                                                inventoryItem.inventoryItemId,
-                                                _selectedInventoryOwner),
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                  child: const Icon(Icons.more_vert),
-                                ),
+                                trailing: _canModify(InventoryOwner.projectManager)
+                                    ? GestureDetector(
+                                        onTapDown: (details) {
+                                          final position = details.globalPosition;
+                                          showMenu(
+                                            context: context,
+                                            position: RelativeRect.fromLTRB(position.dx,
+                                                position.dy, position.dx, position.dy),
+                                            items: [
+                                              PopupMenuItem(
+                                                child: const Text('Edit'),
+                                                onTap: () => Future.delayed(
+                                                  const Duration(milliseconds: 100),
+                                                  () => _editInventoryItem(
+                                                      inventoryItem, _selectedInventoryOwner),
+                                                ),
+                                              ),
+                                              PopupMenuItem(
+                                                child: const Text('Delete'),
+                                                onTap: () => Future.delayed(
+                                                  const Duration(milliseconds: 100),
+                                                  () => _deleteInventoryItem(
+                                                      inventoryItem.inventoryItemId,
+                                                      _selectedInventoryOwner),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                        child: const Icon(Icons.more_vert),
+                                      )
+                                    : null,
                               ),
                             );
                           }).toList(),
@@ -1160,30 +1208,31 @@ class _InventoryPageState extends State<InventoryPage> {
                                     style: const TextStyle(fontSize: 11),
                                   ),
                                 ),
-                                SizedBox(
-                                  width: 100,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.remove),
-                                        iconSize: 28,
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        onPressed: () => _decrementQuantity(
-                                            inventoryItem, _selectedInventoryOwner),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.add),
-                                        iconSize: 28,
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        onPressed: () => _incrementQuantity(
-                                            inventoryItem, _selectedInventoryOwner),
-                                      ),
-                                    ],
+                                if (_canModify(_selectedInventoryOwner))
+                                  SizedBox(
+                                    width: 100,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.remove),
+                                          iconSize: 28,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _decrementQuantity(
+                                              inventoryItem, _selectedInventoryOwner),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.add),
+                                          iconSize: 28,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _incrementQuantity(
+                                              inventoryItem, _selectedInventoryOwner),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                             Text(
@@ -1195,40 +1244,42 @@ class _InventoryPageState extends State<InventoryPage> {
                             ),
                           ],
                         ),
-                        trailing: GestureDetector(
-                          onTapDown: (details) {
-                            final position = details.globalPosition;
-                            showMenu(
-                              context: context,
-                              position: RelativeRect.fromLTRB(
-                                position.dx,
-                                position.dy,
-                                position.dx,
-                                position.dy,
-                              ),
-                              items: [
-                                PopupMenuItem(
-                                  child: const Text('Edit'),
-                                  onTap: () => Future.delayed(
-                                    const Duration(milliseconds: 100),
-                                    () => _editInventoryItem(
-                                        inventoryItem, _selectedInventoryOwner),
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  child: const Text('Delete'),
-                                  onTap: () => Future.delayed(
-                                    const Duration(milliseconds: 100),
-                                    () => _deleteInventoryItem(
-                                        inventoryItem.inventoryItemId,
-                                        _selectedInventoryOwner),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                          child: const Icon(Icons.more_vert),
-                        ),
+                        trailing: _canModify(_selectedInventoryOwner)
+                            ? GestureDetector(
+                                onTapDown: (details) {
+                                  final position = details.globalPosition;
+                                  showMenu(
+                                    context: context,
+                                    position: RelativeRect.fromLTRB(
+                                      position.dx,
+                                      position.dy,
+                                      position.dx,
+                                      position.dy,
+                                    ),
+                                    items: [
+                                      PopupMenuItem(
+                                        child: const Text('Edit'),
+                                        onTap: () => Future.delayed(
+                                          const Duration(milliseconds: 100),
+                                          () => _editInventoryItem(
+                                              inventoryItem, _selectedInventoryOwner),
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        child: const Text('Delete'),
+                                        onTap: () => Future.delayed(
+                                          const Duration(milliseconds: 100),
+                                          () => _deleteInventoryItem(
+                                              inventoryItem.inventoryItemId,
+                                              _selectedInventoryOwner),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                                child: const Icon(Icons.more_vert),
+                              )
+                            : null,
                       ),
                     );
                   },
@@ -1244,6 +1295,9 @@ class _InventoryPageState extends State<InventoryPage> {
   @override
   Widget build(BuildContext context) {
     final user = widget.currentUser;
+    // Set initial index for tabs based on role to save clicks
+    final int defaultTabIndex = 
+        (user?.role == UserRole.fieldCrew || user?.role == UserRole.warehouseStaff) ? 1 : 0;
     
     return Scaffold(
       appBar: AppBar(
@@ -1364,6 +1418,7 @@ class _InventoryPageState extends State<InventoryPage> {
           // Tab View Area
           Expanded(
             child: DefaultTabController(
+              initialIndex: defaultTabIndex,
               length: 2,
               child: Column(
                 children: [

@@ -54,6 +54,31 @@ class _ScanPageState extends State<ScanPage> {
   void initState() {
     super.initState();
     _initializeCamera();
+    _setInitialDocumentType();
+  }
+
+  void _setInitialDocumentType() {
+    if (widget.currentUser != null) {
+      final role = widget.currentUser!.role;
+      if (role == UserRole.projectManager) {
+        _selectedDocumentType = DocumentType.payOrder;
+      } else if (role == UserRole.fieldCrew || role == UserRole.warehouseStaff) {
+        _selectedDocumentType = DocumentType.packingSlip;
+      } else {
+        _selectedDocumentType = DocumentType.packingSlip; // Admin default
+      }
+    }
+  }
+
+  List<DocumentType> _getAllowedDocumentTypes() {
+    final role = widget.currentUser?.role;
+    if (role == UserRole.systemAdmin) {
+      return DocumentType.values;
+    } else if (role == UserRole.projectManager) {
+      return [DocumentType.payOrder];
+    } else {
+      return [DocumentType.packingSlip];
+    }
   }
 
   Future<void> _initializeCamera() async {
@@ -491,27 +516,40 @@ class _ScanPageState extends State<ScanPage> {
 
   @override
   Widget build(BuildContext context) {
+    final allowedTypes = _getAllowedDocumentTypes();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scan Documents'),
         actions: [
           if (!_showReviewForm)
-            DropdownButton<DocumentType>(
-              value: _selectedDocumentType,
-              onChanged: (DocumentType? newValue) {
-                if (newValue != null) {
-                  setState(() {
-                    _selectedDocumentType = newValue;
-                  });
-                }
-              },
-              items: DocumentType.values.map((DocumentType type) {
-                return DropdownMenuItem<DocumentType>(
-                  value: type,
-                  child: Text(type == DocumentType.packingSlip ? 'Packing Slip' : 'Pay Order'),
-                );
-              }).toList(),
-            ),
+            if (allowedTypes.length > 1)
+              DropdownButton<DocumentType>(
+                value: _selectedDocumentType,
+                onChanged: (DocumentType? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _selectedDocumentType = newValue;
+                    });
+                  }
+                },
+                items: allowedTypes.map((DocumentType type) {
+                  return DropdownMenuItem<DocumentType>(
+                    value: type,
+                    child: Text(type == DocumentType.packingSlip ? 'Packing Slip' : 'Pay Order'),
+                  );
+                }).toList(),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Center(
+                  child: Text(
+                    _selectedDocumentType == DocumentType.packingSlip ? 'Packing Slip' : 'Pay Order',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+              ),
         ],
       ),
       body: SafeArea(
