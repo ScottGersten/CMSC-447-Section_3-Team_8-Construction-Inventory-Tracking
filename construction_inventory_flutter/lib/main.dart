@@ -3,8 +3,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'inventory_page.dart';
 import 'login_page.dart';
+import 'saved_documents_page.dart';
 import 'user_management_page.dart';
 import 'materials_page.dart';
+import 'scan_page.dart';
 import 'models/app_user.dart';
 import 'repositories/firestore_repository.dart';
 
@@ -51,6 +53,14 @@ class MyApp extends StatelessWidget {
         '/materials': (context) {
           final user = ModalRoute.of(context)?.settings.arguments as AppUser?;
           return MaterialsPage(currentUser: user);
+        },
+        '/scan': (context) {
+          final user = ModalRoute.of(context)?.settings.arguments as AppUser?;
+          return ScanPage(currentUser: user);
+        },
+        '/documents': (context) {
+          final user = ModalRoute.of(context)?.settings.arguments as AppUser?;
+          return SavedDocumentsPage(currentUser: user);
         },
       },
     );

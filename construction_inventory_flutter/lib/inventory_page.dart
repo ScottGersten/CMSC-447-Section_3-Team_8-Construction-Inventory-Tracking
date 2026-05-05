@@ -23,8 +23,9 @@ class _InventoryPageState extends State<InventoryPage> {
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _reservedQuantityController = TextEditingController();
   final TextEditingController _lowStockThresholdController = TextEditingController();
-  InventoryStatus _selectedStatus = InventoryStatus.inStock;
   bool _isLoading = false;
+  InventoryOwner _selectedInventoryOwner = InventoryOwner.projectManager;
+  int _currentTab = 1; // 0 for Add, 1 for View
 
   // Material creation form controllers
   final TextEditingController _materialNameController = TextEditingController();
@@ -40,6 +41,14 @@ class _InventoryPageState extends State<InventoryPage> {
   void initState() {
     super.initState();
     _repository = FirestoreRepository();
+    
+    // Set default inventory owner based on role
+    if (widget.currentUser != null) {
+      final role = widget.currentUser!.role;
+      if (role == UserRole.fieldCrew || role == UserRole.warehouseStaff) {
+        _selectedInventoryOwner = InventoryOwner.fieldCrew;
+      }
+    }
   }
 
   @override
@@ -55,8 +64,21 @@ class _InventoryPageState extends State<InventoryPage> {
     super.dispose();
   }
 
+  // --- Role Check Method ---
+  bool _canModify(InventoryOwner owner) {
+    final role = widget.currentUser?.role;
+    if (role == UserRole.systemAdmin) return true;
+    if (role == UserRole.projectManager) {
+      return owner == InventoryOwner.projectManager;
+    }
+    if (role == UserRole.fieldCrew || role == UserRole.warehouseStaff) {
+      return owner == InventoryOwner.fieldCrew;
+    }
+    return false;
+  }
+
   // Function to add inventory item
-  Future<void> _addInventoryItem() async {
+  Future<void> _addInventoryItem(InventoryOwner owner) async {
     if (_selectedMaterialId == null || _selectedLocationId == null) {
       _showMessage('Please select a material and location', isError: true);
       return;
@@ -81,6 +103,13 @@ class _InventoryPageState extends State<InventoryPage> {
         return;
       }
 
+      final availableQty = quantity - reservedQuantity;
+      final status = availableQty == 0
+          ? InventoryStatus.outOfStock
+          : availableQty <= lowStockThreshold
+              ? InventoryStatus.lowStock
+              : InventoryStatus.inStock;
+
       setState(() => _isLoading = true);
 
       final inventoryItem = InventoryItem(
@@ -90,11 +119,11 @@ class _InventoryPageState extends State<InventoryPage> {
         quantity: quantity,
         reservedQuantity: reservedQuantity,
         lowStockThreshold: lowStockThreshold,
-        status: _selectedStatus,
+        status: status,
         lastUpdatedAt: DateTime.now(),
       );
 
-      await _repository.createInventoryItem(inventoryItem);
+      await _repository.createInventoryItem(inventoryItem, owner: owner);
 
       // Clear form
       _selectedMaterialId = null;
@@ -102,7 +131,6 @@ class _InventoryPageState extends State<InventoryPage> {
       _quantityController.clear();
       _reservedQuantityController.clear();
       _lowStockThresholdController.clear();
-      _selectedStatus = InventoryStatus.inStock;
 
       if (mounted) {
         _showMessage('Inventory item added successfully!');
@@ -117,7 +145,7 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   // Function to delete an item
-  Future<void> _deleteInventoryItem(String id) async {
+  Future<void> _deleteInventoryItem(String id, InventoryOwner owner) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -143,7 +171,7 @@ class _InventoryPageState extends State<InventoryPage> {
     if (confirmed != true) return;
 
     try {
-      await _repository.deleteInventoryItem(id);
+      await _repository.deleteInventoryItem(id, owner: owner);
       if (mounted) {
         _showMessage('Inventory item deleted successfully');
       }
@@ -155,7 +183,7 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   // Function to edit an existing inventory item
-  Future<void> _editInventoryItem(InventoryItem item) async {
+  Future<void> _editInventoryItem(InventoryItem item, InventoryOwner owner) async {
     final quantityEditController = TextEditingController(
       text: item.quantity.toStringAsFixed(2),
     );
@@ -294,6 +322,7 @@ class _InventoryPageState extends State<InventoryPage> {
                               reservedQuantity: reserved,
                               lowStockThreshold: threshold,
                               status: calculatedStatus,
+                              owner: owner,
                             );
 
                             if (mounted) {
@@ -330,7 +359,7 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   // Function to increment quantity by 1
-  Future<void> _incrementQuantity(InventoryItem item) async {
+  Future<void> _incrementQuantity(InventoryItem item, InventoryOwner owner) async {
     try {
       final newQuantity = item.quantity + 1;
       final availableQty = newQuantity - item.reservedQuantity;
@@ -345,6 +374,7 @@ class _InventoryPageState extends State<InventoryPage> {
         reservedQuantity: item.reservedQuantity,
         lowStockThreshold: item.lowStockThreshold,
         status: calculatedStatus,
+        owner: owner,
       );
       if (mounted) {
         _showMessage('Quantity incremented to ${newQuantity.toStringAsFixed(2)}');
@@ -357,7 +387,7 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   // Function to decrement quantity by 1
-  Future<void> _decrementQuantity(InventoryItem item) async {
+  Future<void> _decrementQuantity(InventoryItem item, InventoryOwner owner) async {
     try {
       if (item.quantity <= 0) {
         _showMessage('Quantity cannot go below 0', isError: true);
@@ -376,6 +406,7 @@ class _InventoryPageState extends State<InventoryPage> {
         reservedQuantity: item.reservedQuantity,
         lowStockThreshold: item.lowStockThreshold,
         status: calculatedStatus,
+        owner: owner,
       );
       if (mounted) {
         _showMessage('Quantity decremented to ${newQuantity.toStringAsFixed(2)}');
@@ -667,6 +698,39 @@ class _InventoryPageState extends State<InventoryPage> {
     }
   }
 
+  String _getProjectManagerDeliveryStatus(
+      InventoryItem item, double deliveredQuantity) {
+    if (deliveredQuantity == 0) {
+      return 'Not Yet Delivered';
+    }
+    if (deliveredQuantity >= item.quantity) {
+      return 'Delivered';
+    }
+    return 'Partially Delivered';
+  }
+
+  Color _getProjectManagerStatusColor(String deliveryStatus) {
+    switch (deliveryStatus) {
+      case 'Delivered':
+        return Colors.green;
+      case 'Partially Delivered':
+        return Colors.orange;
+      default:
+        return Colors.red;
+    }
+  }
+
+  IconData _getProjectManagerStatusIcon(String deliveryStatus) {
+    switch (deliveryStatus) {
+      case 'Delivered':
+        return Icons.check_circle;
+      case 'Partially Delivered':
+        return Icons.hourglass_top;
+      default:
+        return Icons.schedule;
+    }
+  }
+
   void _logout() {
     Navigator.pushReplacementNamed(context, '/login');
   }
@@ -687,6 +751,22 @@ class _InventoryPageState extends State<InventoryPage> {
     );
   }
 
+  void _openScanPage() {
+    Navigator.pushNamed(
+      context,
+      '/scan',
+      arguments: widget.currentUser,
+    );
+  }
+
+  void _openSavedDocuments() {
+    Navigator.pushNamed(
+      context,
+      '/documents',
+      arguments: widget.currentUser,
+    );
+  }
+
   String _roleDisplayName(UserRole role) {
     switch (role) {
       case UserRole.fieldCrew:
@@ -700,9 +780,524 @@ class _InventoryPageState extends State<InventoryPage> {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Extracted UI Builders for Cleaner Structure
+  // ---------------------------------------------------------------------------
+
+  Widget _buildAddInventoryForm() {
+    if (!_canModify(_selectedInventoryOwner)) {
+      final targetDb = _selectedInventoryOwner == InventoryOwner.projectManager
+          ? 'Project Manager'
+          : 'Field Crew';
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.security, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(
+              'Access Denied',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey[700]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You do not have permission to add items\nto the $targetDb database.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 16),
+          // Material dropdown with add button
+          Row(
+            children: [
+              Expanded(
+                child: StreamBuilder<List<material_model.Material>>(
+                  stream: _repository.streamAllMaterials(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(
+                          labelText: 'Material',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [],
+                        onChanged: null,
+                      );
+                    }
+
+                    final materials = snapshot.data ?? [];
+                    return DropdownButtonFormField<String>(
+                      value: _selectedMaterialId,
+                      decoration: const InputDecoration(
+                        labelText: 'Material',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.shopping_bag),
+                      ),
+                      items: materials
+                          .map((material) => DropdownMenuItem<String>(
+                                value: material.materialId,
+                                child: Text(material.name),
+                              ))
+                          .toList(),
+                      onChanged: _isLoading
+                          ? null
+                          : (value) {
+                              setState(() => _selectedMaterialId = value);
+                            },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _isLoading ? null : _showCreateMaterialDialog,
+                icon: const Icon(Icons.add_circle),
+                tooltip: 'Add New Material',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Location dropdown
+          StreamBuilder<List<Location>>(
+            stream: _repository.streamAllLocations(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: 'Location',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [],
+                  onChanged: null,
+                );
+              }
+
+              final locations = snapshot.data ?? [];
+              return DropdownButtonFormField<String>(
+                value: _selectedLocationId,
+                decoration: const InputDecoration(
+                  labelText: 'Location',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.location_on),
+                ),
+                items: locations
+                    .map((location) => DropdownMenuItem<String>(
+                          value: location.locationId,
+                          child: Text(location.name),
+                        ))
+                    .toList(),
+                onChanged: _isLoading
+                    ? null
+                    : (value) {
+                        setState(() => _selectedLocationId = value);
+                      },
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          // Quantity input
+          TextField(
+            controller: _quantityController,
+            enabled: !_isLoading,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Quantity',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.inventory_2),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Reserved Quantity input
+          TextField(
+            controller: _reservedQuantityController,
+            enabled: !_isLoading,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Reserved Quantity',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.lock_outline),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Low Stock Threshold input
+          TextField(
+            controller: _lowStockThresholdController,
+            enabled: !_isLoading,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Low Stock Threshold',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.warning),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          // Create button
+          FilledButton(
+            onPressed: _isLoading
+                ? null
+                : () => _addInventoryItem(_selectedInventoryOwner),
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text('Add Inventory Item'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewItems() {
+    return StreamBuilder<List<Location>>(
+      stream: _repository.streamAllLocations(),
+      builder: (context, locationSnapshot) {
+        if (locationSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        if (locationSnapshot.hasError) {
+          return Center(
+            child: Text('Error: ${locationSnapshot.error}'),
+          );
+        }
+
+        final locations = locationSnapshot.data ?? [];
+        final locationById = {
+          for (final location in locations) location.locationId: location,
+        };
+
+        return StreamBuilder<List<material_model.Material>>(
+          stream: _repository.streamAllMaterials(),
+          builder: (context, materialSnapshot) {
+            if (materialSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+
+            if (materialSnapshot.hasError) {
+              return Center(
+                child: Text('Error: ${materialSnapshot.error}'),
+              );
+            }
+
+            final materials = materialSnapshot.data ?? [];
+            final materialById = {
+              for (final material in materials) material.materialId: material,
+            };
+
+            return StreamBuilder<List<InventoryItem>>(
+              stream: _repository.streamInventoryItems(owner: _selectedInventoryOwner),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}'),
+                  );
+                }
+
+                final items = snapshot.data ?? [];
+                if (items.isEmpty) {
+                  return const Center(
+                    child: Text('No inventory items found'),
+                  );
+                }
+
+                if (_selectedInventoryOwner == InventoryOwner.projectManager) {
+                  return StreamBuilder<List<InventoryItem>>(
+                    stream: _repository.streamInventoryItems(owner: InventoryOwner.fieldCrew),
+                    builder: (context, fcSnapshot) {
+                      if (fcSnapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      }
+
+                      if (fcSnapshot.hasError) {
+                        return Center(
+                          child: Text('Error: ${fcSnapshot.error}'),
+                        );
+                      }
+
+                      final fieldCrewItems = fcSnapshot.data ?? [];
+                      final deliveredQtyByKey = <String, double>{};
+                      for (final fcItem in fieldCrewItems) {
+                        final key = '${fcItem.materialId}|${fcItem.locationId}';
+                        deliveredQtyByKey[key] = (deliveredQtyByKey[key] ?? 0) + fcItem.quantity;
+                      }
+
+                      return ListView(
+                        padding: const EdgeInsets.all(8),
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Text(
+                              'Project Manager Inventory',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          ...items.map((inventoryItem) {
+                            final materialName =
+                                materialById[inventoryItem.materialId]?.name ?? 'Unknown';
+                            final locationName =
+                                locationById[inventoryItem.locationId]?.name ?? 'Unknown';
+                            final deliveredQty = deliveredQtyByKey[
+                                    '${inventoryItem.materialId}|${inventoryItem.locationId}'] ??
+                                0;
+                            final deliveryStatus = _getProjectManagerDeliveryStatus(
+                                inventoryItem, deliveredQty);
+                            final statusColor = _getProjectManagerStatusColor(deliveryStatus);
+                            final statusIcon = _getProjectManagerStatusIcon(deliveryStatus);
+
+                            return Card(
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: statusColor,
+                                  child: Icon(
+                                    statusIcon,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                title: Text(materialName),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Location: $locationName',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    Text(
+                                      'Authorized: ${inventoryItem.quantity.toStringAsFixed(2)} | Delivered: ${deliveredQty.toStringAsFixed(2)}',
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                    Text(
+                                      'Status: $deliveryStatus',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                trailing: _canModify(InventoryOwner.projectManager)
+                                    ? GestureDetector(
+                                        onTapDown: (details) {
+                                          final position = details.globalPosition;
+                                          showMenu(
+                                            context: context,
+                                            position: RelativeRect.fromLTRB(position.dx,
+                                                position.dy, position.dx, position.dy),
+                                            items: [
+                                              PopupMenuItem(
+                                                child: const Text('Edit'),
+                                                onTap: () => Future.delayed(
+                                                  const Duration(milliseconds: 100),
+                                                  () => _editInventoryItem(
+                                                      inventoryItem, _selectedInventoryOwner),
+                                                ),
+                                              ),
+                                              PopupMenuItem(
+                                                child: const Text('Delete'),
+                                                onTap: () => Future.delayed(
+                                                  const Duration(milliseconds: 100),
+                                                  () => _deleteInventoryItem(
+                                                      inventoryItem.inventoryItemId,
+                                                      _selectedInventoryOwner),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                        child: const Icon(Icons.more_vert),
+                                      )
+                                    : null,
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      );
+                    },
+                  );
+                }
+
+                // Grouped Field Crew View
+                final groupedItems = _groupItemsByStatus(items);
+                final displayItems = _buildGroupedList(groupedItems);
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: displayItems.length,
+                  itemBuilder: (context, index) {
+                    final item = displayItems[index];
+
+                    if (item is String) {
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Text(
+                          item,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      );
+                    }
+
+                    final inventoryItem = item as InventoryItem;
+                    final materialName =
+                        materialById[inventoryItem.materialId]?.name ?? 'Unknown';
+                    final locationName =
+                        locationById[inventoryItem.locationId]?.name ?? 'Unknown';
+
+                    return Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: inventoryItem.availableQuantity == 0
+                              ? Colors.red
+                              : inventoryItem.availableQuantity <=
+                                      inventoryItem.lowStockThreshold
+                                  ? Colors.yellow[700]
+                                  : Colors.green,
+                          child: Icon(
+                            inventoryItem.availableQuantity == 0
+                                ? Icons.close
+                                : inventoryItem.availableQuantity <=
+                                        inventoryItem.lowStockThreshold
+                                    ? Icons.warning
+                                    : Icons.check_circle,
+                            color: Colors.white,
+                          ),
+                        ),
+                        title: Text(materialName),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Location: $locationName',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Qty: ${inventoryItem.quantity.toStringAsFixed(2)} | Reserved: ${inventoryItem.reservedQuantity.toStringAsFixed(2)} | Available: ${inventoryItem.availableQuantity.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                ),
+                                if (_canModify(_selectedInventoryOwner))
+                                  SizedBox(
+                                    width: 100,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.remove),
+                                          iconSize: 28,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _decrementQuantity(
+                                              inventoryItem, _selectedInventoryOwner),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.add),
+                                          iconSize: 28,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _incrementQuantity(
+                                              inventoryItem, _selectedInventoryOwner),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            Text(
+                              'Threshold: ${inventoryItem.lowStockThreshold.toStringAsFixed(2)} | Status: ${_statusDisplayName(inventoryItem.status)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                        trailing: _canModify(_selectedInventoryOwner)
+                            ? GestureDetector(
+                                onTapDown: (details) {
+                                  final position = details.globalPosition;
+                                  showMenu(
+                                    context: context,
+                                    position: RelativeRect.fromLTRB(
+                                      position.dx,
+                                      position.dy,
+                                      position.dx,
+                                      position.dy,
+                                    ),
+                                    items: [
+                                      PopupMenuItem(
+                                        child: const Text('Edit'),
+                                        onTap: () => Future.delayed(
+                                          const Duration(milliseconds: 100),
+                                          () => _editInventoryItem(
+                                              inventoryItem, _selectedInventoryOwner),
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        child: const Text('Delete'),
+                                        onTap: () => Future.delayed(
+                                          const Duration(milliseconds: 100),
+                                          () => _deleteInventoryItem(
+                                              inventoryItem.inventoryItemId,
+                                              _selectedInventoryOwner),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                                child: const Icon(Icons.more_vert),
+                              )
+                            : null,
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.currentUser;
+    // Set initial index for tabs based on role to save clicks
+    final int defaultTabIndex = 
+        (user?.role == UserRole.fieldCrew || user?.role == UserRole.warehouseStaff) ? 1 : 0;
     
     return Scaffold(
       appBar: AppBar(
@@ -714,6 +1309,10 @@ class _InventoryPageState extends State<InventoryPage> {
                 _openUserManagement();
               } else if (value == 'materials') {
                 _openMaterialsManagement();
+              } else if (value == 'scan') {
+                _openScanPage();
+              } else if (value == 'documents') {
+                _openSavedDocuments();
               } else if (value == 'logout') {
                 _logout();
               }
@@ -727,6 +1326,22 @@ class _InventoryPageState extends State<InventoryPage> {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
+              const PopupMenuItem<String>(
+                value: 'scan',
+                child: ListTile(
+                  leading: Icon(Icons.camera_alt),
+                  title: Text('Scan Documents'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'documents',
+                child: ListTile(
+                  leading: Icon(Icons.folder_open),
+                  title: Text('Saved Documents'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
               if (user != null && user.role == UserRole.systemAdmin)
                 const PopupMenuItem<String>(
                   value: 'management',
@@ -736,11 +1351,11 @@ class _InventoryPageState extends State<InventoryPage> {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-              PopupMenuItem<String>(
+              const PopupMenuItem<String>(
                 value: 'logout',
                 child: ListTile(
-                  leading: const Icon(Icons.logout),
-                  title: const Text('Logout'),
+                  leading: Icon(Icons.logout),
+                  title: Text('Logout'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -753,8 +1368,7 @@ class _InventoryPageState extends State<InventoryPage> {
                   children: [
                     if (user != null)
                       Tooltip(
-                        message:
-                            '${user.name}\n${user.email}\n${_roleDisplayName(user.role)}',
+                        message: '${user.name}\n${user.email}\n${_roleDisplayName(user.role)}',
                         child: CircleAvatar(
                           radius: 16,
                           child: Text(
@@ -801,400 +1415,59 @@ class _InventoryPageState extends State<InventoryPage> {
                 ],
               ),
             ),
-          // Create Inventory Item Form
+          // Tab View Area
           Expanded(
             child: DefaultTabController(
+              initialIndex: defaultTabIndex,
               length: 2,
-              initialIndex: 1,
               child: Column(
                 children: [
-                  const TabBar(
-                    tabs: [
-                      Tab(text: 'Add Inventory Item'),
-                      Tab(text: 'View Items'),
+                  TabBar(
+                    onTap: (index) {
+                      setState(() {
+                        _selectedInventoryOwner = index == 0
+                            ? InventoryOwner.projectManager
+                            : InventoryOwner.fieldCrew;
+                      });
+                    },
+                    tabs: const [
+                      Tab(text: 'Project Manager'),
+                      Tab(text: 'Field Crew'),
                     ],
                   ),
                   Expanded(
-                    child: TabBarView(
+                    child: Column(
                       children: [
-                        // Add Inventory Item Tab
-                        SingleChildScrollView(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const SizedBox(height: 16),
-                              // Material dropdown with add button
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: StreamBuilder<List<material_model.Material>>(
-                                      stream: _repository.streamAllMaterials(),
-                                      builder: (context, snapshot) {
-                                        if (snapshot.connectionState ==
-                                            ConnectionState.waiting) {
-                                          return DropdownButtonFormField<String>(
-                                            decoration: const InputDecoration(
-                                              labelText: 'Material',
-                                              border: OutlineInputBorder(),
-                                            ),
-                                            items: const [],
-                                            onChanged: null,
-                                          );
-                                        }
-
-                                        final materials = snapshot.data ?? [];
-                                        return DropdownButtonFormField<String>(
-                                          value: _selectedMaterialId,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Material',
-                                            border: OutlineInputBorder(),
-                                            prefixIcon: Icon(Icons.shopping_bag),
-                                          ),
-                                          items: materials
-                                              .map((material) =>
-                                                  DropdownMenuItem<String>(
-                                                    value: material.materialId,
-                                                    child: Text(material.name),
-                                                  ))
-                                              .toList(),
-                                          onChanged: _isLoading
-                                              ? null
-                                              : (value) {
-                                                  setState(() =>
-                                                      _selectedMaterialId = value);
-                                                },
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    onPressed: _isLoading ? null : _showCreateMaterialDialog,
-                                    icon: const Icon(Icons.add_circle),
-                                    tooltip: 'Add New Material',
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              // Location dropdown
-                              StreamBuilder<List<Location>>(
-                                stream: _repository.streamAllLocations(),
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.waiting) {
-                                    return DropdownButtonFormField<String>(
-                                      decoration: const InputDecoration(
-                                        labelText: 'Location',
-                                        border: OutlineInputBorder(),
-                                      ),
-                                      items: const [],
-                                      onChanged: null,
-                                    );
-                                  }
-
-                                  final locations = snapshot.data ?? [];
-                                  return DropdownButtonFormField<String>(
-                                    value: _selectedLocationId,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Location',
-                                      border: OutlineInputBorder(),
-                                      prefixIcon: Icon(Icons.location_on),
-                                    ),
-                                    items: locations
-                                        .map((location) =>
-                                            DropdownMenuItem<String>(
-                                              value: location.locationId,
-                                              child: Text(location.name),
-                                            ))
-                                        .toList(),
-                                    onChanged: _isLoading
-                                        ? null
-                                        : (value) {
-                                            setState(() =>
-                                                _selectedLocationId = value);
-                                          },
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              // Quantity input
-                              TextField(
-                                controller: _quantityController,
-                                enabled: !_isLoading,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Quantity',
-                                  border: OutlineInputBorder(),
-                                  prefixIcon: Icon(Icons.inventory_2),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () => setState(() => _currentTab = 0),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _currentTab == 0
+                                      ? Colors.blue
+                                      : Colors.grey,
                                 ),
+                                child: const Text('Add Inventory Item'),
                               ),
-                              const SizedBox(height: 12),
-                              // Reserved Quantity input
-                              TextField(
-                                controller: _reservedQuantityController,
-                                enabled: !_isLoading,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Reserved Quantity',
-                                  border: OutlineInputBorder(),
-                                  prefixIcon: Icon(Icons.lock_outline),
+                            ),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () => setState(() => _currentTab = 1),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _currentTab == 1
+                                      ? Colors.blue
+                                      : Colors.grey,
                                 ),
+                                child: const Text('View Items'),
                               ),
-                              const SizedBox(height: 12),
-                              // Low Stock Threshold input
-                              TextField(
-                                controller: _lowStockThresholdController,
-                                enabled: !_isLoading,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Low Stock Threshold',
-                                  border: OutlineInputBorder(),
-                                  prefixIcon: Icon(Icons.warning),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              // Status dropdown
-                              AbsorbPointer(
-                                absorbing: _isLoading,
-                                child: DropdownButtonFormField<InventoryStatus>(
-                                  initialValue: _selectedStatus,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Status',
-                                    border: OutlineInputBorder(),
-                                    prefixIcon: Icon(Icons.check_circle),
-                                  ),
-                                  items: InventoryStatus.values
-                                      .map((status) => DropdownMenuItem(
-                                            value: status,
-                                            child: Text(
-                                                _statusDisplayName(status)),
-                                          ))
-                                      .toList(),
-                                  onChanged: (status) {
-                                    if (status != null) {
-                                      setState(() => _selectedStatus = status);
-                                    }
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              // Create button
-                              FilledButton(
-                                onPressed:
-                                    _isLoading ? null : _addInventoryItem,
-                                child: _isLoading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                  Colors.white),
-                                        ),
-                                      )
-                                    : const Text('Add Inventory Item'),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-
-                        // View Items Tab
-                        StreamBuilder<List<InventoryItem>>(
-                          stream: _repository.streamInventoryItems(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                  child: CircularProgressIndicator());
-                            }
-
-                            if (snapshot.hasError) {
-                              return Center(
-                                child: Text('Error: ${snapshot.error}'),
-                              );
-                            }
-
-                            final items = snapshot.data ?? [];
-                            if (items.isEmpty) {
-                              return const Center(
-                                child: Text('No inventory items found'),
-                              );
-                            }
-
-                            // Group items by status
-                            final groupedItems = _groupItemsByStatus(items);
-                            final displayItems = _buildGroupedList(groupedItems);
-
-                            return ListView.builder(
-                              padding: const EdgeInsets.all(8),
-                              itemCount: displayItems.length,
-                              itemBuilder: (context, index) {
-                                final item = displayItems[index];
-                                
-                                if (item is String) {
-                                  // This is a header
-                                  return Padding(
-                                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                                    child: Text(
-                                      item,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  );
-                                }
-                                
-                                // This is an inventory item
-                                final inventoryItem = item as InventoryItem;
-                                return FutureBuilder<
-                                    Map<String, String?>>(
-                                  future: Future.wait([
-                                    _repository
-                                        .getMaterial(inventoryItem.materialId)
-                                        .then((m) => m?.name ?? 'Unknown'),
-                                    _repository
-                                        .getLocation(inventoryItem.locationId)
-                                        .then((l) => l?.name ?? 'Unknown'),
-                                  ]).then((results) => {
-                                    'material': results[0],
-                                    'location': results[1],
-                                  }),
-                                  builder: (context, nameSnapshot) {
-                                    final materialName =
-                                        nameSnapshot.data?['material'] ??
-                                            'Loading...';
-                                    final locationName =
-                                        nameSnapshot.data?['location'] ??
-                                            'Loading...';
-
-                                    return Card(
-                                      child: ListTile(
-                                        leading: CircleAvatar(
-                                          backgroundColor:
-                                              inventoryItem.availableQuantity == 0
-                                                  ? Colors.red
-                                                  : inventoryItem.availableQuantity <=
-                                                          inventoryItem.lowStockThreshold
-                                                      ? Colors.yellow[700]
-                                                      : Colors.green,
-                                          child: Icon(
-                                            inventoryItem.availableQuantity == 0
-                                                ? Icons.close
-                                                : inventoryItem.availableQuantity <=
-                                                        inventoryItem.lowStockThreshold
-                                                    ? Icons.warning
-                                                    : Icons.check_circle,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        title: Text(materialName),
-                                        subtitle: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'Location: $locationName',
-                                              style: const TextStyle(
-                                                  fontSize: 12),
-                                            ),
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    'Qty: ${inventoryItem.quantity.toStringAsFixed(2)} | Reserved: ${inventoryItem.reservedQuantity.toStringAsFixed(2)} | Available: ${inventoryItem.availableQuantity.toStringAsFixed(2)}',
-                                                    style: const TextStyle(
-                                                        fontSize: 11),
-                                                  ),
-                                                ),
-                                                SizedBox(
-                                                  width: 100,
-                                                  child: Row(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment.end,
-                                                    children: [
-                                                      IconButton(
-                                                        icon: const Icon(
-                                                            Icons.remove),
-                                                        iconSize: 28,
-                                                        padding:
-                                                            EdgeInsets.zero,
-                                                        constraints:
-                                                            const BoxConstraints(),
-                                                        onPressed: () =>
-                                                            _decrementQuantity(
-                                                                inventoryItem),
-                                                      ),
-                                                      IconButton(
-                                                        icon:
-                                                            const Icon(Icons.add),
-                                                        iconSize: 28,
-                                                        padding:
-                                                            EdgeInsets.zero,
-                                                        constraints:
-                                                            const BoxConstraints(),
-                                                        onPressed: () =>
-                                                            _incrementQuantity(
-                                                                inventoryItem),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            Text(
-                                              'Threshold: ${inventoryItem.lowStockThreshold.toStringAsFixed(2)} | Status: ${_statusDisplayName(inventoryItem.status)}',
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                fontStyle: FontStyle.italic,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        trailing: GestureDetector(
-                                          onTapDown: (details) {
-                                            final position = details.globalPosition;
-                                            showMenu(
-                                              context: context,
-                                              position: RelativeRect.fromLTRB(
-                                                position.dx,
-                                                position.dy,
-                                                position.dx,
-                                                position.dy,
-                                              ),
-                                              items: [
-                                                PopupMenuItem(
-                                                  child: const Text('Edit'),
-                                                  onTap: () =>
-                                                      Future.delayed(
-                                                        const Duration(milliseconds: 100),
-                                                        () => _editInventoryItem(inventoryItem),
-                                                      ),
-                                                ),
-                                                PopupMenuItem(
-                                                  child: const Text('Delete'),
-                                                  onTap: () =>
-                                                      Future.delayed(
-                                                        const Duration(milliseconds: 100),
-                                                        () => _deleteInventoryItem(
-                                                            inventoryItem.inventoryItemId),
-                                                      ),
-                                                ),
-                                              ],
-                                            );
-                                          },
-                                          child: const Icon(Icons.more_vert),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                );
-                              },
-                            );
-                          },
+                        Expanded(
+                          child: _currentTab == 0
+                              ? _buildAddInventoryForm()
+                              : _buildViewItems(),
                         ),
                       ],
                     ),
