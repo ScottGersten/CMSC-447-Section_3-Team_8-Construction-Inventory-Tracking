@@ -25,6 +25,10 @@ class _MaterialsPageState extends State<MaterialsPage> {
   String _materialUnitOfMeasure = 'unit';
   bool _isLoading = false;
 
+  bool get _canAdd => widget.currentUser?.role == UserRole.systemAdmin || widget.currentUser?.role == UserRole.projectManager;
+  bool get _canRequest => widget.currentUser?.role == UserRole.systemAdmin || widget.currentUser?.role == UserRole.fieldCrew || widget.currentUser?.role == UserRole.warehouseStaff;
+  bool get _canApprove => _canAdd;
+
   @override
   void initState() {
     super.initState();
@@ -41,7 +45,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
     super.dispose();
   }
 
-  Future<void> _createNewMaterial() async {
+  Future<void> _submitForm({required bool isRequest}) async {
     final name = _materialNameController.text.trim();
     if (name.isEmpty) {
       _showMessage('Please enter a material name', isError: true);
@@ -69,6 +73,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
             : _materialManufacturerController.text.trim(),
         unitOfMeasure: _materialUnitOfMeasure,
         unitCost: unitCost,
+        isApproved: !isRequest, // Set approved status based on action
       );
 
       await _repository.createMaterial(newMaterial);
@@ -83,13 +88,26 @@ class _MaterialsPageState extends State<MaterialsPage> {
       _materialUnitOfMeasure = 'unit';
 
       if (mounted) {
-        _showMessage('Material "$name" created successfully!');
+        _showMessage(isRequest ? 'Material "$name" requested successfully!' : 'Material "$name" created successfully!');
       }
     } catch (e) {
-      _showMessage('Error creating material: $e', isError: true);
+      _showMessage('Error processing material: $e', isError: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _approveMaterial(material_model.Material material) async {
+    try {
+      await _repository.approveMaterial(material.materialId);
+      if (mounted) {
+        _showMessage('Material "${material.name}" approved successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showMessage('Error approving material: $e', isError: true);
       }
     }
   }
@@ -318,6 +336,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
                                   : manufacturerEditController.text.trim(),
                               unitOfMeasure: selectedUnitOfMeasure,
                               unitCost: unitCost,
+                              isApproved: material.isApproved, // retain existing
                             );
 
                             await _repository.updateMaterial(
@@ -388,9 +407,310 @@ class _MaterialsPageState extends State<MaterialsPage> {
     }
   }
 
+  // Helper method to build the form for both Adding and Requesting Materials
+  Widget _buildFormTab({required bool isRequest}) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 16),
+          TextField(
+            controller: _materialNameController,
+            enabled: !_isLoading,
+            decoration: const InputDecoration(
+              labelText: 'Material Name *',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.label),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _materialDescriptionController,
+            enabled: !_isLoading,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Description',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.description),
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<material_model.MaterialCategory>(
+            value: _materialCategory,
+            decoration: const InputDecoration(
+              labelText: 'Category',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.category),
+            ),
+            items: material_model.MaterialCategory.values
+                .map((category) => DropdownMenuItem(
+                      value: category,
+                      child: Text(
+                        category == material_model.MaterialCategory.equipment
+                            ? 'Equipment'
+                            : 'Materials',
+                      ),
+                    ))
+                .toList(),
+            onChanged: _isLoading
+                ? null
+                : (value) {
+                    if (value != null) {
+                      setState(() => _materialCategory = value);
+                    }
+                  },
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _materialPartNumberController,
+            enabled: !_isLoading,
+            decoration: const InputDecoration(
+              labelText: 'Part Number',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.numbers),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _materialManufacturerController,
+            enabled: !_isLoading,
+            decoration: const InputDecoration(
+              labelText: 'Manufacturer',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.factory),
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: _materialUnitOfMeasure,
+            decoration: const InputDecoration(
+              labelText: 'Unit of Measure',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.straighten),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'unit', child: Text('Unit')),
+              DropdownMenuItem(value: 'box', child: Text('Box')),
+              DropdownMenuItem(value: 'case', child: Text('Case')),
+              DropdownMenuItem(value: 'pallet', child: Text('Pallet')),
+              DropdownMenuItem(value: 'kg', child: Text('Kilogram')),
+              DropdownMenuItem(value: 'lb', child: Text('Pound')),
+              DropdownMenuItem(value: 'm', child: Text('Meter')),
+              DropdownMenuItem(value: 'ft', child: Text('Foot')),
+            ],
+            onChanged: _isLoading
+                ? null
+                : (value) {
+                    if (value != null) {
+                      setState(() => _materialUnitOfMeasure = value);
+                    }
+                  },
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _materialUnitCostController,
+            enabled: !_isLoading,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Unit Cost',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.attach_money),
+            ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: _isLoading ? null : () => _submitForm(isRequest: isRequest),
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Text(isRequest ? 'Request Material' : 'Add Material'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAllMaterialsTab() {
+    return StreamBuilder<List<material_model.Material>>(
+      stream: _repository.streamAllMaterials(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error: ${snapshot.error}'),
+          );
+        }
+
+        final materials = snapshot.data ?? [];
+        if (materials.isEmpty) {
+          return const Center(
+            child: Text('No materials found'),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(8),
+          itemCount: materials.length,
+          itemBuilder: (context, index) {
+            final material = materials[index];
+            
+            // Check menu action availability to conditionally render the popup menu icon
+            final bool canShowApprove = !material.isApproved && _canApprove;
+            final bool canShowEditDelete = _canAdd || (!material.isApproved && _canRequest);
+            final bool hasMenuItems = canShowApprove || canShowEditDelete;
+
+            return Card(
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: material.category ==
+                          material_model.MaterialCategory.equipment
+                      ? Colors.blue
+                      : Colors.green,
+                  child: Icon(
+                    material.category ==
+                            material_model.MaterialCategory.equipment
+                        ? Icons.build
+                        : Icons.shopping_bag,
+                    color: Colors.white,
+                  ),
+                ),
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        material.name,
+                        style: TextStyle(
+                          fontWeight: material.isApproved ? FontWeight.normal : FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (!material.isApproved)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.shade300),
+                        ),
+                        child: const Text(
+                          'Requested',
+                          style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                  ],
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (material.description != null)
+                      Text(
+                        material.description!,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    Text(
+                      'Category: ${material.category == material_model.MaterialCategory.equipment ? 'Equipment' : 'Materials'}',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    if (material.partNumber != null)
+                      Text(
+                        'Part #: ${material.partNumber}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    if (material.manufacturer != null)
+                      Text(
+                        'Mfg: ${material.manufacturer}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    Text(
+                      'Unit: ${material.unitOfMeasure} | Cost: \$${material.unitCost.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                trailing: hasMenuItems 
+                  ? GestureDetector(
+                      onTapDown: (details) {
+                        final position = details.globalPosition;
+                        showMenu(
+                          context: context,
+                          position: RelativeRect.fromLTRB(
+                            position.dx,
+                            position.dy,
+                            position.dx,
+                            position.dy,
+                          ),
+                          items: [
+                            if (canShowApprove)
+                              PopupMenuItem(
+                                child: const Text('Approve'),
+                                onTap: () => Future.delayed(
+                                  const Duration(milliseconds: 100),
+                                  () => _approveMaterial(material),
+                                ),
+                              ),
+                            if (canShowEditDelete)
+                              PopupMenuItem(
+                                child: const Text('Edit'),
+                                onTap: () => Future.delayed(
+                                  const Duration(milliseconds: 100),
+                                  () => _editMaterial(material),
+                                ),
+                              ),
+                            if (canShowEditDelete)
+                              PopupMenuItem(
+                                child: const Text('Delete'),
+                                onTap: () => Future.delayed(
+                                  const Duration(milliseconds: 100),
+                                  () => _deleteMaterial(
+                                      material.materialId, material.name),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                      child: const Icon(Icons.more_vert),
+                    )
+                  : null, // Don't show the menu icon if the user has no available actions
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.currentUser;
+
+    // Dynamically build tabs based on permissions
+    final tabs = <Tab>[];
+    final views = <Widget>[];
+
+    if (_canAdd) {
+      tabs.add(const Tab(text: 'Add Material'));
+      views.add(_buildFormTab(isRequest: false));
+    }
+    if (_canRequest) {
+      tabs.add(const Tab(text: 'Request Material'));
+      views.add(_buildFormTab(isRequest: true));
+    }
+    
+    tabs.add(const Tab(text: 'All Materials'));
+    views.add(_buildAllMaterialsTab());
 
     return Scaffold(
       appBar: AppBar(
@@ -418,11 +738,11 @@ class _MaterialsPageState extends State<MaterialsPage> {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-              PopupMenuItem<String>(
+              const PopupMenuItem<String>(
                 value: 'logout',
                 child: ListTile(
-                  leading: const Icon(Icons.logout),
-                  title: const Text('Logout'),
+                  leading: Icon(Icons.logout),
+                  title: Text('Logout'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -452,262 +772,17 @@ class _MaterialsPageState extends State<MaterialsPage> {
         ],
       ),
       body: DefaultTabController(
-        length: 2,
-        initialIndex: 1,
+        length: tabs.length,
+        initialIndex: tabs.length - 1, // Start on 'All Materials' tab
         child: Column(
           children: [
-            const TabBar(
-              tabs: [
-                Tab(text: 'Add Material'),
-                Tab(text: 'All Materials'),
-              ],
+            TabBar(
+              isScrollable: tabs.length > 2,
+              tabs: tabs,
             ),
             Expanded(
               child: TabBarView(
-                children: [
-                  // Add Material Tab
-                  SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _materialNameController,
-                          enabled: !_isLoading,
-                          decoration: const InputDecoration(
-                            labelText: 'Material Name *',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.label),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _materialDescriptionController,
-                          enabled: !_isLoading,
-                          maxLines: 2,
-                          decoration: const InputDecoration(
-                            labelText: 'Description',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.description),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<material_model.MaterialCategory>(
-                          value: _materialCategory,
-                          decoration: const InputDecoration(
-                            labelText: 'Category',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.category),
-                          ),
-                          items: material_model.MaterialCategory.values
-                              .map((category) => DropdownMenuItem(
-                                    value: category,
-                                    child: Text(
-                                      category == material_model.MaterialCategory.equipment
-                                          ? 'Equipment'
-                                          : 'Materials',
-                                    ),
-                                  ))
-                              .toList(),
-                          onChanged: _isLoading
-                              ? null
-                              : (value) {
-                                  if (value != null) {
-                                    setState(() => _materialCategory = value);
-                                  }
-                                },
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _materialPartNumberController,
-                          enabled: !_isLoading,
-                          decoration: const InputDecoration(
-                            labelText: 'Part Number',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.numbers),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _materialManufacturerController,
-                          enabled: !_isLoading,
-                          decoration: const InputDecoration(
-                            labelText: 'Manufacturer',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.factory),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          value: _materialUnitOfMeasure,
-                          decoration: const InputDecoration(
-                            labelText: 'Unit of Measure',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.straighten),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'unit', child: Text('Unit')),
-                            DropdownMenuItem(value: 'box', child: Text('Box')),
-                            DropdownMenuItem(value: 'case', child: Text('Case')),
-                            DropdownMenuItem(value: 'pallet', child: Text('Pallet')),
-                            DropdownMenuItem(value: 'kg', child: Text('Kilogram')),
-                            DropdownMenuItem(value: 'lb', child: Text('Pound')),
-                            DropdownMenuItem(value: 'm', child: Text('Meter')),
-                            DropdownMenuItem(value: 'ft', child: Text('Foot')),
-                          ],
-                          onChanged: _isLoading
-                              ? null
-                              : (value) {
-                                  if (value != null) {
-                                    setState(() => _materialUnitOfMeasure = value);
-                                  }
-                                },
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _materialUnitCostController,
-                          enabled: !_isLoading,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Unit Cost',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.attach_money),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        FilledButton(
-                          onPressed: _isLoading ? null : _createNewMaterial,
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor:
-                                        AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : const Text('Add Material'),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // All Materials Tab
-                  StreamBuilder<List<material_model.Material>>(
-                    stream: _repository.streamAllMaterials(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Text('Error: ${snapshot.error}'),
-                        );
-                      }
-
-                      final materials = snapshot.data ?? [];
-                      if (materials.isEmpty) {
-                        return const Center(
-                          child: Text('No materials found'),
-                        );
-                      }
-
-                      return ListView.builder(
-                        padding: const EdgeInsets.all(8),
-                        itemCount: materials.length,
-                        itemBuilder: (context, index) {
-                          final material = materials[index];
-                          return Card(
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: material.category ==
-                                        material_model.MaterialCategory.equipment
-                                    ? Colors.blue
-                                    : Colors.green,
-                                child: Icon(
-                                  material.category ==
-                                          material_model.MaterialCategory.equipment
-                                      ? Icons.build
-                                      : Icons.shopping_bag,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              title: Text(material.name),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (material.description != null)
-                                    Text(
-                                      material.description!,
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  Text(
-                                    'Category: ${material.category == material_model.MaterialCategory.equipment ? 'Equipment' : 'Materials'}',
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                                  if (material.partNumber != null)
-                                    Text(
-                                      'Part #: ${material.partNumber}',
-                                      style: const TextStyle(fontSize: 11),
-                                    ),
-                                  if (material.manufacturer != null)
-                                    Text(
-                                      'Mfg: ${material.manufacturer}',
-                                      style: const TextStyle(fontSize: 11),
-                                    ),
-                                  Text(
-                                    'Unit: ${material.unitOfMeasure} | Cost: \$${material.unitCost.toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              trailing: GestureDetector(
-                                onTapDown: (details) {
-                                  final position = details.globalPosition;
-                                  showMenu(
-                                    context: context,
-                                    position: RelativeRect.fromLTRB(
-                                      position.dx,
-                                      position.dy,
-                                      position.dx,
-                                      position.dy,
-                                    ),
-                                    items: [
-                                      PopupMenuItem(
-                                        child: const Text('Edit'),
-                                        onTap: () =>
-                                            Future.delayed(
-                                              const Duration(milliseconds: 100),
-                                              () => _editMaterial(material),
-                                            ),
-                                      ),
-                                      PopupMenuItem(
-                                        child: const Text('Delete'),
-                                        onTap: () =>
-                                            Future.delayed(
-                                              const Duration(milliseconds: 100),
-                                              () => _deleteMaterial(
-                                                  material.materialId, material.name),
-                                            ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                                child: const Icon(Icons.more_vert),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ],
+                children: views,
               ),
             ),
           ],
