@@ -130,19 +130,19 @@ class _MaterialsPageState extends State<MaterialsPage> {
                     TextField(
                       controller: nameEditController,
                       enabled: !isEditing,
-                      decoration: InputDecoration(labelText: 'Material Name *', border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.label)),
+                      decoration: const InputDecoration(labelText: 'Material Name *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.label)),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: descriptionEditController,
                       enabled: !isEditing,
                       maxLines: 2,
-                      decoration: InputDecoration(labelText: 'Description', border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.description)),
+                      decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder(), prefixIcon: Icon(Icons.description)),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<material_model.MaterialCategory>(
                       value: selectedCategory,
-                      decoration: InputDecoration(labelText: 'Category', border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.category)),
+                      decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
                       items: material_model.MaterialCategory.values.map((category) => DropdownMenuItem(value: category, child: Text(category == material_model.MaterialCategory.equipment ? 'Equipment' : 'Materials'))).toList(),
                       onChanged: isEditing ? null : (value) { if (value != null) { setDialogState(() => selectedCategory = value); } },
                     ),
@@ -150,18 +150,18 @@ class _MaterialsPageState extends State<MaterialsPage> {
                     TextField(
                       controller: partNumberEditController,
                       enabled: !isEditing,
-                      decoration: InputDecoration(labelText: 'Part Number', border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.numbers)),
+                      decoration: const InputDecoration(labelText: 'Part Number', border: OutlineInputBorder(), prefixIcon: Icon(Icons.numbers)),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: manufacturerEditController,
                       enabled: !isEditing,
-                      decoration: InputDecoration(labelText: 'Manufacturer', border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.factory)),
+                      decoration: const InputDecoration(labelText: 'Manufacturer', border: OutlineInputBorder(), prefixIcon: Icon(Icons.factory)),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: selectedUnitOfMeasure,
-                      decoration: InputDecoration(labelText: 'Unit of Measure', border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.straighten)),
+                      decoration: const InputDecoration(labelText: 'Unit of Measure', border: OutlineInputBorder(), prefixIcon: Icon(Icons.straighten)),
                       items: const [
                         DropdownMenuItem(value: 'unit', child: Text('Unit')),
                         DropdownMenuItem(value: 'box', child: Text('Box')),
@@ -179,7 +179,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
                       controller: unitCostEditController,
                       enabled: !isEditing,
                       keyboardType: TextInputType.number,
-                      decoration: InputDecoration(labelText: 'Unit Cost', border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.attach_money)),
+                      decoration: const InputDecoration(labelText: 'Unit Cost', border: OutlineInputBorder(), prefixIcon: Icon(Icons.attach_money)),
                     ),
                   ],
                 ),
@@ -319,24 +319,24 @@ class _MaterialsPageState extends State<MaterialsPage> {
               ],
             ),
           ),
-          TextField(controller: _materialNameController, enabled: !_isLoading, decoration: InputDecoration(labelText: 'Material Name *', hintText: 'Enter material name', prefixIcon: const Icon(Icons.label), helperText: 'Required field')),
+          TextField(controller: _materialNameController, enabled: !_isLoading, decoration: const InputDecoration(labelText: 'Material Name *', hintText: 'Enter material name', prefixIcon: Icon(Icons.label), helperText: 'Required field')),
           const SizedBox(height: 16),
-          TextField(controller: _materialDescriptionController, enabled: !_isLoading, maxLines: 2, decoration: InputDecoration(labelText: 'Description', hintText: 'Enter material description', prefixIcon: const Icon(Icons.description), helperText: 'Optional')),
+          TextField(controller: _materialDescriptionController, enabled: !_isLoading, maxLines: 2, decoration: const InputDecoration(labelText: 'Description', hintText: 'Enter material description', prefixIcon: Icon(Icons.description), helperText: 'Optional')),
           const SizedBox(height: 16),
           DropdownButtonFormField<material_model.MaterialCategory>(
             value: _materialCategory,
-            decoration: InputDecoration(labelText: 'Category', prefixIcon: const Icon(Icons.category), helperText: 'Select category'),
+            decoration: const InputDecoration(labelText: 'Category', prefixIcon: Icon(Icons.category), helperText: 'Select category'),
             items: material_model.MaterialCategory.values.map((category) => DropdownMenuItem(value: category, child: Text(category == material_model.MaterialCategory.equipment ? 'Equipment' : 'Materials'))).toList(),
             onChanged: _isLoading ? null : (value) { if (value != null) { setState(() => _materialCategory = value); } },
           ),
           const SizedBox(height: 16),
-          TextField(controller: _materialPartNumberController, enabled: !_isLoading, decoration: InputDecoration(labelText: 'Part Number', hintText: 'Enter part number', prefixIcon: const Icon(Icons.numbers), helperText: 'Optional')),
+          TextField(controller: _materialPartNumberController, enabled: !_isLoading, decoration: const InputDecoration(labelText: 'Part Number', hintText: 'Enter part number', prefixIcon: Icon(Icons.numbers), helperText: 'Optional')),
           const SizedBox(height: 16),
-          TextField(controller: _materialManufacturerController, enabled: !_isLoading, decoration: InputDecoration(labelText: 'Manufacturer', hintText: 'Enter manufacturer name', prefixIcon: const Icon(Icons.factory), helperText: 'Optional')),
+          TextField(controller: _materialManufacturerController, enabled: !_isLoading, decoration: const InputDecoration(labelText: 'Manufacturer', hintText: 'Enter manufacturer name', prefixIcon: Icon(Icons.factory), helperText: 'Optional')),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             value: _materialUnitOfMeasure,
-            decoration: InputDecoration(labelText: 'Unit of Measure', prefixIcon: const Icon(Icons.straighten), helperText: 'Select unit of measure'),
+            decoration: const InputDecoration(labelText: 'Unit of Measure', prefixIcon: Icon(Icons.straighten), helperText: 'Select unit of measure'),
             items: const [
               DropdownMenuItem(value: 'unit', child: Text('Unit')),
               DropdownMenuItem(value: 'box', child: Text('Box')),
@@ -350,7 +350,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
             onChanged: _isLoading ? null : (value) { if (value != null) { setState(() => _materialUnitOfMeasure = value); } },
           ),
           const SizedBox(height: 16),
-          TextField(controller: _materialUnitCostController, enabled: !_isLoading, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Unit Cost', hintText: '0.00', prefixIcon: const Icon(Icons.attach_money), helperText: 'Optional')),
+          TextField(controller: _materialUnitCostController, enabled: !_isLoading, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Unit Cost', hintText: '0.00', prefixIcon: Icon(Icons.attach_money), helperText: 'Optional')),
           const SizedBox(height: 32),
           FilledButton.icon(
             onPressed: _isLoading ? null : () => _submitForm(isRequest: isRequest),
@@ -413,7 +413,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
           itemBuilder: (context, index) {
             final material = materials[index];
             final bool canShowApprove = !material.isApproved && _canApprove;
-            final bool canShowEditDelete = _canAdd || (!material.isApproved && _canRequest);
+            final bool canShowEditDelete = widget.currentUser != null && (_canAdd || _canRequest); 
             final bool hasMenuItems = canShowApprove || canShowEditDelete;
 
             return Padding(
@@ -461,21 +461,49 @@ class _MaterialsPageState extends State<MaterialsPage> {
                             ),
                           ),
                           if (hasMenuItems)
-                            PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'approve') {
-                                  _approveMaterial(material);
-                                } else if (value == 'edit') {
-                                  _editMaterial(material);
-                                } else if (value == 'delete') {
-                                  _deleteMaterial(material.materialId, material.name);
-                                }
+                            GestureDetector(
+                              onTapDown: (details) {
+                                final position = details.globalPosition;
+                                showMenu(
+                                  context: context,
+                                  position: RelativeRect.fromLTRB(
+                                    position.dx,
+                                    position.dy,
+                                    position.dx,
+                                    position.dy,
+                                  ),
+                                  items: [
+                                    if (canShowApprove)
+                                      PopupMenuItem(
+                                        onTap: () => Future.delayed(
+                                          const Duration(milliseconds: 100),
+                                          () => _approveMaterial(material),
+                                        ),
+                                        child: const Row(children: [Icon(Icons.check_circle), SizedBox(width: 8), Text('Approve')]),
+                                      ),
+                                    if (canShowEditDelete)
+                                      PopupMenuItem(
+                                        onTap: () => Future.delayed(
+                                          const Duration(milliseconds: 100),
+                                          () => _editMaterial(material),
+                                        ),
+                                        child: const Row(children: [Icon(Icons.edit), SizedBox(width: 8), Text('Edit')]),
+                                      ),
+                                    if (canShowEditDelete)
+                                      PopupMenuItem(
+                                        onTap: () => Future.delayed(
+                                          const Duration(milliseconds: 100),
+                                          () => _deleteMaterial(material.materialId, material.name),
+                                        ),
+                                        child: const Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 8), Text('Delete', style: TextStyle(color: Colors.red))]),
+                                      ),
+                                  ],
+                                );
                               },
-                              itemBuilder: (context) => [
-                                if (canShowApprove) const PopupMenuItem(value: 'approve', child: Row(children: [Icon(Icons.check_circle), SizedBox(width: 8), Text('Approve')])),
-                                if (canShowEditDelete) const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit), SizedBox(width: 8), Text('Edit')])),
-                                if (canShowEditDelete) PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, color: Colors.red), const SizedBox(width: 8), const Text('Delete', style: TextStyle(color: Colors.red))])),
-                              ],
+                              child: const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Icon(Icons.more_vert),
+                              ),
                             ),
                         ],
                       ),
