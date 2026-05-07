@@ -4,6 +4,7 @@ import 'models/inventory_item.dart';
 import 'models/location.dart';
 import 'models/material.dart' as material_model;
 import 'repositories/firestore_repository.dart';
+import 'theme/app_theme.dart';
 
 class InventoryPage extends StatefulWidget {
   final AppUser? currentUser;
@@ -790,33 +791,58 @@ class _InventoryPageState extends State<InventoryPage> {
           ? 'Project Manager'
           : 'Field Crew';
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.security, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(
-              'Access Denied',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey[700]),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'You do not have permission to add items\nto the $targetDb database.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.lock,
+                size: 64,
+                color: Colors.red.shade300,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Access Denied',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You do not have permission to add items to the $targetDb database.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 16),
-          // Material dropdown with add button
+          // Form Header
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Add Inventory Item',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Add a new item to inventory',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+
+          // Material Selection Row
           Row(
             children: [
               Expanded(
@@ -825,9 +851,9 @@ class _InventoryPageState extends State<InventoryPage> {
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Material',
-                          border: OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.shopping_bag),
                         ),
                         items: const [],
                         onChanged: null,
@@ -837,10 +863,10 @@ class _InventoryPageState extends State<InventoryPage> {
                     final materials = snapshot.data ?? [];
                     return DropdownButtonFormField<String>(
                       value: _selectedMaterialId,
-                      decoration: const InputDecoration(
-                        labelText: 'Material',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.shopping_bag),
+                      decoration: InputDecoration(
+                        labelText: 'Material *',
+                        prefixIcon: const Icon(Icons.shopping_bag),
+                        helperText: 'Select material',
                       ),
                       items: materials
                           .map((material) => DropdownMenuItem<String>(
@@ -858,23 +884,24 @@ class _InventoryPageState extends State<InventoryPage> {
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton(
+              FloatingActionButton.small(
                 onPressed: _isLoading ? null : _showCreateMaterialDialog,
-                icon: const Icon(Icons.add_circle),
                 tooltip: 'Add New Material',
+                child: const Icon(Icons.add),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          // Location dropdown
+          const SizedBox(height: 16),
+
+          // Location Selection
           StreamBuilder<List<Location>>(
             stream: _repository.streamAllLocations(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Location',
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.location_on),
                   ),
                   items: const [],
                   onChanged: null,
@@ -884,10 +911,10 @@ class _InventoryPageState extends State<InventoryPage> {
               final locations = snapshot.data ?? [];
               return DropdownButtonFormField<String>(
                 value: _selectedLocationId,
-                decoration: const InputDecoration(
-                  labelText: 'Location',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.location_on),
+                decoration: InputDecoration(
+                  labelText: 'Location *',
+                  prefixIcon: const Icon(Icons.location_on),
+                  helperText: 'Select location',
                 ),
                 items: locations
                     .map((location) => DropdownMenuItem<String>(
@@ -903,50 +930,56 @@ class _InventoryPageState extends State<InventoryPage> {
               );
             },
           ),
-          const SizedBox(height: 12),
-          // Quantity input
+          const SizedBox(height: 16),
+
+          // Quantity Field
           TextField(
             controller: _quantityController,
             enabled: !_isLoading,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Quantity',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.inventory_2),
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Reserved Quantity input
-          TextField(
-            controller: _reservedQuantityController,
-            enabled: !_isLoading,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Reserved Quantity',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.lock_outline),
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Low Stock Threshold input
-          TextField(
-            controller: _lowStockThresholdController,
-            enabled: !_isLoading,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Low Stock Threshold',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.warning),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Quantity *',
+              hintText: '0.00',
+              prefixIcon: const Icon(Icons.inventory_2),
+              helperText: 'Total quantity',
             ),
           ),
           const SizedBox(height: 16),
-          const SizedBox(height: 24),
-          // Create button
-          FilledButton(
+
+          // Reserved Quantity Field
+          TextField(
+            controller: _reservedQuantityController,
+            enabled: !_isLoading,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Reserved Quantity *',
+              hintText: '0.00',
+              prefixIcon: const Icon(Icons.lock_outline),
+              helperText: 'Amount reserved',
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Low Stock Threshold Field
+          TextField(
+            controller: _lowStockThresholdController,
+            enabled: !_isLoading,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Low Stock Threshold *',
+              hintText: '0.00',
+              prefixIcon: const Icon(Icons.warning),
+              helperText: 'Alert when below this amount',
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Submit Button
+          FilledButton.icon(
             onPressed: _isLoading
                 ? null
                 : () => _addInventoryItem(_selectedInventoryOwner),
-            child: _isLoading
+            icon: _isLoading
                 ? const SizedBox(
                     height: 20,
                     width: 20,
@@ -955,7 +988,8 @@ class _InventoryPageState extends State<InventoryPage> {
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
-                : const Text('Add Inventory Item'),
+                : const Icon(Icons.add),
+            label: const Text('Add Inventory Item'),
           ),
         ],
       ),
@@ -1295,13 +1329,10 @@ class _InventoryPageState extends State<InventoryPage> {
   @override
   Widget build(BuildContext context) {
     final user = widget.currentUser;
-    // Set initial index for tabs based on role to save clicks
-    final int defaultTabIndex = 
-        (user?.role == UserRole.fieldCrew || user?.role == UserRole.warehouseStaff) ? 1 : 0;
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Inventory"),
+        title: const Text("Inventory Management"),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) {
@@ -1320,163 +1351,263 @@ class _InventoryPageState extends State<InventoryPage> {
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
               const PopupMenuItem<String>(
                 value: 'materials',
-                child: ListTile(
-                  leading: Icon(Icons.shopping_bag),
-                  title: Text('Manage Materials'),
-                  contentPadding: EdgeInsets.zero,
+                child: Row(
+                  children: [
+                    Icon(Icons.shopping_bag),
+                    SizedBox(width: 12),
+                    Text('Manage Materials'),
+                  ],
                 ),
               ),
               const PopupMenuItem<String>(
                 value: 'scan',
-                child: ListTile(
-                  leading: Icon(Icons.camera_alt),
-                  title: Text('Scan Documents'),
-                  contentPadding: EdgeInsets.zero,
+                child: Row(
+                  children: [
+                    Icon(Icons.camera_alt),
+                    SizedBox(width: 12),
+                    Text('Scan Documents'),
+                  ],
                 ),
               ),
               const PopupMenuItem<String>(
                 value: 'documents',
-                child: ListTile(
-                  leading: Icon(Icons.folder_open),
-                  title: Text('Saved Documents'),
-                  contentPadding: EdgeInsets.zero,
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_open),
+                    SizedBox(width: 12),
+                    Text('Saved Documents'),
+                  ],
                 ),
               ),
               if (user != null && user.role == UserRole.systemAdmin)
                 const PopupMenuItem<String>(
                   value: 'management',
-                  child: ListTile(
-                    leading: Icon(Icons.people),
-                    title: Text('Manage Users'),
-                    contentPadding: EdgeInsets.zero,
+                  child: Row(
+                    children: [
+                      Icon(Icons.people),
+                      SizedBox(width: 12),
+                      Text('Manage Users'),
+                    ],
                   ),
                 ),
               const PopupMenuItem<String>(
                 value: 'logout',
-                child: ListTile(
-                  leading: Icon(Icons.logout),
-                  title: Text('Logout'),
-                  contentPadding: EdgeInsets.zero,
+                child: Row(
+                  children: [
+                    Icon(Icons.logout),
+                    SizedBox(width: 12),
+                    Text('Logout'),
+                  ],
                 ),
               ),
             ],
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (user != null)
-                      Tooltip(
-                        message: '${user.name}\n${user.email}\n${_roleDisplayName(user.role)}',
-                        child: CircleAvatar(
-                          radius: 16,
-                          child: Text(
-                            user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                          ),
-                        ),
+                child: Tooltip(
+                  message: user != null
+                      ? '${user.name}\n${user.email}\n${_roleDisplayName(user.role)}'
+                      : '',
+                  child: CircleAvatar(
+                    backgroundColor: AppTheme.primary,
+                    radius: 18,
+                    child: Text(
+                      user != null && user.name.isNotEmpty
+                          ? user.name[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
                       ),
-                  ],
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: Column(
-        children: [
-          if (user != null)
+      body: DefaultTabController(
+        initialIndex: _selectedInventoryOwner == InventoryOwner.projectManager ? 0 : 1,
+        length: 2,
+        child: Column(
+          children: [
+            // User Info Bar
+            if (user != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceVariant,
+                  border: Border(
+                    bottom: BorderSide(color: AppTheme.border),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.account_circle,
+                        color: AppTheme.primary,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user.name,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          Text(
+                            'Role: ${_roleDisplayName(user.role)}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            
+            // TabBar
             Container(
-              padding: const EdgeInsets.all(12),
-              color: Colors.blue.shade50,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              color: Colors.white,
+              child: TabBar(
+                onTap: (index) {
+                  setState(() {
+                    _selectedInventoryOwner = index == 0
+                        ? InventoryOwner.projectManager
+                        : InventoryOwner.fieldCrew;
+                  });
+                },
+                tabs: const [
+                  Tab(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          'Logged in as: ${user.name}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        Text(
-                          'Role: ${_roleDisplayName(user.role)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
+                        Icon(Icons.business),
+                        SizedBox(width: 8),
+                        Text('Project Manager'),
+                      ],
+                    ),
+                  ),
+                  Tab(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.engineering),
+                        SizedBox(width: 8),
+                        Text('Field Crew'),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-          // Tab View Area
-          Expanded(
-            child: DefaultTabController(
-              initialIndex: defaultTabIndex,
-              length: 2,
-              child: Column(
+            
+            // Tab Content
+            Expanded(
+              child: TabBarView(
                 children: [
-                  TabBar(
-                    onTap: (index) {
-                      setState(() {
-                        _selectedInventoryOwner = index == 0
-                            ? InventoryOwner.projectManager
-                            : InventoryOwner.fieldCrew;
-                      });
-                    },
-                    tabs: const [
-                      Tab(text: 'Project Manager'),
-                      Tab(text: 'Field Crew'),
-                    ],
-                  ),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Row(
+                  Column(
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
                           children: [
-                            Expanded(
-                              child: ElevatedButton(
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: FilledButton.icon(
                                 onPressed: () => setState(() => _currentTab = 0),
-                                style: ElevatedButton.styleFrom(
+                                icon: const Icon(Icons.add),
+                                label: const Text('Add Item'),
+                                style: FilledButton.styleFrom(
                                   backgroundColor: _currentTab == 0
-                                      ? Colors.blue
-                                      : Colors.grey,
+                                      ? AppTheme.primary
+                                      : AppTheme.textTertiary,
                                 ),
-                                child: const Text('Add Inventory Item'),
                               ),
                             ),
-                            Expanded(
-                              child: ElevatedButton(
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: FilledButton.icon(
                                 onPressed: () => setState(() => _currentTab = 1),
-                                style: ElevatedButton.styleFrom(
+                                icon: const Icon(Icons.list),
+                                label: const Text('View Items'),
+                                style: FilledButton.styleFrom(
                                   backgroundColor: _currentTab == 1
-                                      ? Colors.blue
-                                      : Colors.grey,
+                                      ? AppTheme.primary
+                                      : AppTheme.textTertiary,
                                 ),
-                                child: const Text('View Items'),
                               ),
                             ),
                           ],
                         ),
-                        Expanded(
-                          child: _currentTab == 0
-                              ? _buildAddInventoryForm()
-                              : _buildViewItems(),
+                      ),
+                      Expanded(
+                        child: _currentTab == 0
+                            ? _buildAddInventoryForm()
+                            : _buildViewItems(),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: FilledButton.icon(
+                                onPressed: () => setState(() => _currentTab = 0),
+                                icon: const Icon(Icons.add),
+                                label: const Text('Add Item'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: _currentTab == 0
+                                      ? AppTheme.primary
+                                      : AppTheme.textTertiary,
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: FilledButton.icon(
+                                onPressed: () => setState(() => _currentTab = 1),
+                                icon: const Icon(Icons.list),
+                                label: const Text('View Items'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: _currentTab == 1
+                                      ? AppTheme.primary
+                                      : AppTheme.textTertiary,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      Expanded(
+                        child: _currentTab == 0
+                            ? _buildAddInventoryForm()
+                            : _buildViewItems(),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

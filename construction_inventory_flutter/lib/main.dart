@@ -9,6 +9,7 @@ import 'materials_page.dart';
 import 'scan_page.dart';
 import 'models/app_user.dart';
 import 'repositories/firestore_repository.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,9 +31,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Construction Inventory',
-      theme: ThemeData(
-        colorScheme: .fromSeed(seedColor: Colors.green),
-      ),
+      theme: AppTheme.buildTheme(),
       initialRoute: '/login',
       routes: {
         '/login': (context) => const LoginPage(),

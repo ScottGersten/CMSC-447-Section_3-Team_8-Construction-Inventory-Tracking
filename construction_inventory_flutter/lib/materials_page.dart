@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'models/app_user.dart';
 import 'models/material.dart' as material_model;
 import 'repositories/firestore_repository.dart';
+import 'theme/app_theme.dart';
 
 class MaterialsPage extends StatefulWidget {
   final AppUser? currentUser;
@@ -15,7 +16,6 @@ class MaterialsPage extends StatefulWidget {
 class _MaterialsPageState extends State<MaterialsPage> {
   late FirestoreRepository _repository;
   
-  // Material creation form controllers
   final TextEditingController _materialNameController = TextEditingController();
   final TextEditingController _materialDescriptionController = TextEditingController();
   final TextEditingController _materialPartNumberController = TextEditingController();
@@ -61,24 +61,17 @@ class _MaterialsPageState extends State<MaterialsPage> {
       final newMaterial = material_model.Material(
         materialId: '',
         name: name,
-        description: _materialDescriptionController.text.trim().isEmpty
-            ? null
-            : _materialDescriptionController.text.trim(),
+        description: _materialDescriptionController.text.trim().isEmpty ? null : _materialDescriptionController.text.trim(),
         category: _materialCategory,
-        partNumber: _materialPartNumberController.text.trim().isEmpty
-            ? null
-            : _materialPartNumberController.text.trim(),
-        manufacturer: _materialManufacturerController.text.trim().isEmpty
-            ? null
-            : _materialManufacturerController.text.trim(),
+        partNumber: _materialPartNumberController.text.trim().isEmpty ? null : _materialPartNumberController.text.trim(),
+        manufacturer: _materialManufacturerController.text.trim().isEmpty ? null : _materialManufacturerController.text.trim(),
         unitOfMeasure: _materialUnitOfMeasure,
         unitCost: unitCost,
-        isApproved: !isRequest, // Set approved status based on action
+        isApproved: !isRequest,
       );
 
       await _repository.createMaterial(newMaterial);
 
-      // Clear form
       _materialNameController.clear();
       _materialDescriptionController.clear();
       _materialPartNumberController.clear();
@@ -112,53 +105,12 @@ class _MaterialsPageState extends State<MaterialsPage> {
     }
   }
 
-  Future<void> _deleteMaterial(String id, String name) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Material'),
-        content: Text(
-            'Are you sure you want to delete "$name"? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      await _repository.deleteMaterial(id);
-      if (mounted) {
-        _showMessage('Material deleted successfully');
-      }
-    } catch (e) {
-      if (mounted) {
-        _showMessage('Error deleting material: $e', isError: true);
-      }
-    }
-  }
-
   Future<void> _editMaterial(material_model.Material material) async {
     final nameEditController = TextEditingController(text: material.name);
-    final descriptionEditController =
-        TextEditingController(text: material.description ?? '');
-    final partNumberEditController =
-        TextEditingController(text: material.partNumber ?? '');
-    final manufacturerEditController =
-        TextEditingController(text: material.manufacturer ?? '');
-    final unitCostEditController =
-        TextEditingController(text: material.unitCost.toStringAsFixed(2));
+    final descriptionEditController = TextEditingController(text: material.description ?? '');
+    final partNumberEditController = TextEditingController(text: material.partNumber ?? '');
+    final manufacturerEditController = TextEditingController(text: material.manufacturer ?? '');
+    final unitCostEditController = TextEditingController(text: material.unitCost.toStringAsFixed(2));
     var selectedCategory = material.category;
     var selectedUnitOfMeasure = material.unitOfMeasure;
     bool isEditing = false;
@@ -178,77 +130,38 @@ class _MaterialsPageState extends State<MaterialsPage> {
                     TextField(
                       controller: nameEditController,
                       enabled: !isEditing,
-                      decoration: const InputDecoration(
-                        labelText: 'Material Name *',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.label),
-                      ),
+                      decoration: const InputDecoration(labelText: 'Material Name *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.label)),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: descriptionEditController,
                       enabled: !isEditing,
                       maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.description),
-                      ),
+                      decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder(), prefixIcon: Icon(Icons.description)),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<material_model.MaterialCategory>(
                       value: selectedCategory,
-                      decoration: const InputDecoration(
-                        labelText: 'Category',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.category),
-                      ),
-                      items: material_model.MaterialCategory.values
-                          .map((category) => DropdownMenuItem(
-                                value: category,
-                                child: Text(
-                                  category == material_model.MaterialCategory.equipment
-                                      ? 'Equipment'
-                                      : 'Materials',
-                                ),
-                              ))
-                          .toList(),
-                      onChanged: isEditing
-                          ? null
-                          : (value) {
-                              if (value != null) {
-                                setDialogState(() => selectedCategory = value);
-                              }
-                            },
+                      decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
+                      items: material_model.MaterialCategory.values.map((category) => DropdownMenuItem(value: category, child: Text(category == material_model.MaterialCategory.equipment ? 'Equipment' : 'Materials'))).toList(),
+                      onChanged: isEditing ? null : (value) { if (value != null) { setDialogState(() => selectedCategory = value); } },
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: partNumberEditController,
                       enabled: !isEditing,
-                      decoration: const InputDecoration(
-                        labelText: 'Part Number',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.numbers),
-                      ),
+                      decoration: const InputDecoration(labelText: 'Part Number', border: OutlineInputBorder(), prefixIcon: Icon(Icons.numbers)),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: manufacturerEditController,
                       enabled: !isEditing,
-                      decoration: const InputDecoration(
-                        labelText: 'Manufacturer',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.factory),
-                      ),
+                      decoration: const InputDecoration(labelText: 'Manufacturer', border: OutlineInputBorder(), prefixIcon: Icon(Icons.factory)),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: selectedUnitOfMeasure,
-                      decoration: const InputDecoration(
-                        labelText: 'Unit of Measure',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.straighten),
-                      ),
+                      decoration: const InputDecoration(labelText: 'Unit of Measure', border: OutlineInputBorder(), prefixIcon: Icon(Icons.straighten)),
                       items: const [
                         DropdownMenuItem(value: 'unit', child: Text('Unit')),
                         DropdownMenuItem(value: 'box', child: Text('Box')),
@@ -259,109 +172,68 @@ class _MaterialsPageState extends State<MaterialsPage> {
                         DropdownMenuItem(value: 'm', child: Text('Meter')),
                         DropdownMenuItem(value: 'ft', child: Text('Foot')),
                       ],
-                      onChanged: isEditing
-                          ? null
-                          : (value) {
-                              if (value != null) {
-                                setDialogState(
-                                    () => selectedUnitOfMeasure = value);
-                              }
-                            },
+                      onChanged: isEditing ? null : (value) { if (value != null) { setDialogState(() => selectedUnitOfMeasure = value); } },
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: unitCostEditController,
                       enabled: !isEditing,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Unit Cost',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.attach_money),
-                      ),
+                      decoration: const InputDecoration(labelText: 'Unit Cost', border: OutlineInputBorder(), prefixIcon: Icon(Icons.attach_money)),
                     ),
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isEditing
-                      ? null
-                      : () {
-                          nameEditController.dispose();
-                          descriptionEditController.dispose();
-                          partNumberEditController.dispose();
-                          manufacturerEditController.dispose();
-                          unitCostEditController.dispose();
-                          Navigator.pop(context);
-                        },
+                  onPressed: isEditing ? null : () {
+                    nameEditController.dispose();
+                    descriptionEditController.dispose();
+                    partNumberEditController.dispose();
+                    manufacturerEditController.dispose();
+                    unitCostEditController.dispose();
+                    Navigator.pop(context);
+                  },
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: isEditing
-                      ? null
-                      : () async {
-                          try {
-                            setDialogState(() => isEditing = true);
-                            final name = nameEditController.text.trim();
-                            if (name.isEmpty) {
-                              _showMessage('Please enter a material name',
-                                  isError: true);
-                              setDialogState(() => isEditing = false);
-                              return;
-                            }
+                  onPressed: isEditing ? null : () async {
+                    try {
+                      setDialogState(() => isEditing = true);
+                      final name = nameEditController.text.trim();
+                      if (name.isEmpty) {
+                        _showMessage('Please enter a material name', isError: true);
+                        setDialogState(() => isEditing = false);
+                        return;
+                      }
 
-                            final unitCostText =
-                                unitCostEditController.text.trim();
-                            final unitCost = unitCostText.isEmpty
-                                ? 0.0
-                                : double.parse(unitCostText);
+                      final unitCostText = unitCostEditController.text.trim();
+                      final unitCost = unitCostText.isEmpty ? 0.0 : double.parse(unitCostText);
 
-                            final updatedMaterial = material_model.Material(
-                              materialId: material.materialId,
-                              name: name,
-                              description: descriptionEditController.text
-                                      .trim()
-                                      .isEmpty
-                                  ? null
-                                  : descriptionEditController.text.trim(),
-                              category: selectedCategory,
-                              partNumber:
-                                  partNumberEditController.text.trim().isEmpty
-                                      ? null
-                                      : partNumberEditController.text.trim(),
-                              manufacturer: manufacturerEditController.text
-                                      .trim()
-                                      .isEmpty
-                                  ? null
-                                  : manufacturerEditController.text.trim(),
-                              unitOfMeasure: selectedUnitOfMeasure,
-                              unitCost: unitCost,
-                              isApproved: material.isApproved, // retain existing
-                            );
+                      final updatedMaterial = material_model.Material(
+                        materialId: material.materialId,
+                        name: name,
+                        description: descriptionEditController.text.trim().isEmpty ? null : descriptionEditController.text.trim(),
+                        category: selectedCategory,
+                        partNumber: partNumberEditController.text.trim().isEmpty ? null : partNumberEditController.text.trim(),
+                        manufacturer: manufacturerEditController.text.trim().isEmpty ? null : manufacturerEditController.text.trim(),
+                        unitOfMeasure: selectedUnitOfMeasure,
+                        unitCost: unitCost,
+                        isApproved: material.isApproved,
+                      );
 
-                            await _repository.updateMaterial(
-                                material.materialId, updatedMaterial);
+                      await _repository.updateMaterial(material.materialId, updatedMaterial);
 
-                            if (mounted) {
-                              _showMessage('Material updated successfully');
-                              Navigator.pop(context);
-                            }
-                          } catch (e) {
-                            _showMessage('Error: $e', isError: true);
-                            setDialogState(() => isEditing = false);
-                          }
-                        },
-                  child: isEditing
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text('Save Changes'),
+                      if (mounted) {
+                        _showMessage('Material updated successfully');
+                        Navigator.pop(context);
+                      }
+                    } catch (e) {
+                      _showMessage('Error: $e', isError: true);
+                      setDialogState(() => isEditing = false);
+                    }
+                  },
+                  child: isEditing ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))) : const Text('Save Changes'),
                 ),
               ],
             );
@@ -369,6 +241,33 @@ class _MaterialsPageState extends State<MaterialsPage> {
         );
       },
     );
+  }
+
+  Future<void> _deleteMaterial(String id, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Material'),
+        content: Text('Are you sure you want to delete "$name"? This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('Delete')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _repository.deleteMaterial(id);
+      if (mounted) {
+        _showMessage('Material deleted successfully');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showMessage('Error deleting material: $e', isError: true);
+      }
+    }
   }
 
   void _showMessage(String message, {bool isError = false}) {
@@ -387,11 +286,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
   }
 
   void _openUserManagement() {
-    Navigator.pushNamed(
-      context,
-      '/user-management',
-      arguments: widget.currentUser,
-    );
+    Navigator.pushNamed(context, '/user-management', arguments: widget.currentUser);
   }
 
   String _roleDisplayName(UserRole role) {
@@ -407,88 +302,41 @@ class _MaterialsPageState extends State<MaterialsPage> {
     }
   }
 
-  // Helper method to build the form for both Adding and Requesting Materials
   Widget _buildFormTab({required bool isRequest}) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(isRequest ? 'Request Material' : 'Add New Material', style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 8),
+                Text('Fill in the details to ${isRequest ? 'request' : 'create'} a new material', style: Theme.of(context).textTheme.bodyMedium),
+              ],
+            ),
+          ),
+          TextField(controller: _materialNameController, enabled: !_isLoading, decoration: const InputDecoration(labelText: 'Material Name *', hintText: 'Enter material name', prefixIcon: Icon(Icons.label), helperText: 'Required field')),
           const SizedBox(height: 16),
-          TextField(
-            controller: _materialNameController,
-            enabled: !_isLoading,
-            decoration: const InputDecoration(
-              labelText: 'Material Name *',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.label),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _materialDescriptionController,
-            enabled: !_isLoading,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: 'Description',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.description),
-            ),
-          ),
-          const SizedBox(height: 12),
+          TextField(controller: _materialDescriptionController, enabled: !_isLoading, maxLines: 2, decoration: const InputDecoration(labelText: 'Description', hintText: 'Enter material description', prefixIcon: Icon(Icons.description), helperText: 'Optional')),
+          const SizedBox(height: 16),
           DropdownButtonFormField<material_model.MaterialCategory>(
             value: _materialCategory,
-            decoration: const InputDecoration(
-              labelText: 'Category',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.category),
-            ),
-            items: material_model.MaterialCategory.values
-                .map((category) => DropdownMenuItem(
-                      value: category,
-                      child: Text(
-                        category == material_model.MaterialCategory.equipment
-                            ? 'Equipment'
-                            : 'Materials',
-                      ),
-                    ))
-                .toList(),
-            onChanged: _isLoading
-                ? null
-                : (value) {
-                    if (value != null) {
-                      setState(() => _materialCategory = value);
-                    }
-                  },
+            decoration: const InputDecoration(labelText: 'Category', prefixIcon: Icon(Icons.category), helperText: 'Select category'),
+            items: material_model.MaterialCategory.values.map((category) => DropdownMenuItem(value: category, child: Text(category == material_model.MaterialCategory.equipment ? 'Equipment' : 'Materials'))).toList(),
+            onChanged: _isLoading ? null : (value) { if (value != null) { setState(() => _materialCategory = value); } },
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _materialPartNumberController,
-            enabled: !_isLoading,
-            decoration: const InputDecoration(
-              labelText: 'Part Number',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.numbers),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _materialManufacturerController,
-            enabled: !_isLoading,
-            decoration: const InputDecoration(
-              labelText: 'Manufacturer',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.factory),
-            ),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          TextField(controller: _materialPartNumberController, enabled: !_isLoading, decoration: const InputDecoration(labelText: 'Part Number', hintText: 'Enter part number', prefixIcon: Icon(Icons.numbers), helperText: 'Optional')),
+          const SizedBox(height: 16),
+          TextField(controller: _materialManufacturerController, enabled: !_isLoading, decoration: const InputDecoration(labelText: 'Manufacturer', hintText: 'Enter manufacturer name', prefixIcon: Icon(Icons.factory), helperText: 'Optional')),
+          const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             value: _materialUnitOfMeasure,
-            decoration: const InputDecoration(
-              labelText: 'Unit of Measure',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.straighten),
-            ),
+            decoration: const InputDecoration(labelText: 'Unit of Measure', prefixIcon: Icon(Icons.straighten), helperText: 'Select unit of measure'),
             items: const [
               DropdownMenuItem(value: 'unit', child: Text('Unit')),
               DropdownMenuItem(value: 'box', child: Text('Box')),
@@ -499,38 +347,15 @@ class _MaterialsPageState extends State<MaterialsPage> {
               DropdownMenuItem(value: 'm', child: Text('Meter')),
               DropdownMenuItem(value: 'ft', child: Text('Foot')),
             ],
-            onChanged: _isLoading
-                ? null
-                : (value) {
-                    if (value != null) {
-                      setState(() => _materialUnitOfMeasure = value);
-                    }
-                  },
+            onChanged: _isLoading ? null : (value) { if (value != null) { setState(() => _materialUnitOfMeasure = value); } },
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _materialUnitCostController,
-            enabled: !_isLoading,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Unit Cost',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.attach_money),
-            ),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
+          const SizedBox(height: 16),
+          TextField(controller: _materialUnitCostController, enabled: !_isLoading, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Unit Cost', hintText: '0.00', prefixIcon: Icon(Icons.attach_money), helperText: 'Optional')),
+          const SizedBox(height: 32),
+          FilledButton.icon(
             onPressed: _isLoading ? null : () => _submitForm(isRequest: isRequest),
-            child: _isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : Text(isRequest ? 'Request Material' : 'Add Material'),
+            icon: _isLoading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))) : const Icon(Icons.add),
+            label: Text(isRequest ? 'Request Material' : 'Add Material'),
           ),
         ],
       ),
@@ -547,143 +372,161 @@ class _MaterialsPageState extends State<MaterialsPage> {
 
         if (snapshot.hasError) {
           return Center(
-            child: Text('Error: ${snapshot.error}'),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+                  const SizedBox(height: 16),
+                  Text('Error loading materials', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text('${snapshot.error}', style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center),
+                ],
+              ),
+            ),
           );
         }
 
         final materials = snapshot.data ?? [];
         if (materials.isEmpty) {
-          return const Center(
-            child: Text('No materials found'),
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox, size: 48, color: AppTheme.textTertiary),
+                  const SizedBox(height: 16),
+                  Text('No materials found', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text('Create or request a material to get started', style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center),
+                ],
+              ),
+            ),
           );
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(16),
           itemCount: materials.length,
           itemBuilder: (context, index) {
             final material = materials[index];
-            
-            // Check menu action availability to conditionally render the popup menu icon
             final bool canShowApprove = !material.isApproved && _canApprove;
-            final bool canShowEditDelete = _canAdd || (!material.isApproved && _canRequest);
+            final bool canShowEditDelete = widget.currentUser != null && (_canAdd || _canRequest); 
             final bool hasMenuItems = canShowApprove || canShowEditDelete;
 
-            return Card(
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: material.category ==
-                          material_model.MaterialCategory.equipment
-                      ? Colors.blue
-                      : Colors.green,
-                  child: Icon(
-                    material.category ==
-                            material_model.MaterialCategory.equipment
-                        ? Icons.build
-                        : Icons.shopping_bag,
-                    color: Colors.white,
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: material.category == material_model.MaterialCategory.equipment ? Colors.blue.shade50 : Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              material.category == material_model.MaterialCategory.equipment ? Icons.build : Icons.shopping_bag,
+                              color: material.category == material_model.MaterialCategory.equipment ? Colors.blue : Colors.green,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(material.name, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                if (!material.isApproved)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.shade100,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: Colors.amber.shade300),
+                                      ),
+                                      child: const Text('Pending Approval', style: TextStyle(fontSize: 11, color: Colors.amber, fontWeight: FontWeight.w600)),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (hasMenuItems)
+                            GestureDetector(
+                              onTapDown: (details) {
+                                final position = details.globalPosition;
+                                showMenu(
+                                  context: context,
+                                  position: RelativeRect.fromLTRB(
+                                    position.dx,
+                                    position.dy,
+                                    position.dx,
+                                    position.dy,
+                                  ),
+                                  items: [
+                                    if (canShowApprove)
+                                      PopupMenuItem(
+                                        onTap: () => Future.delayed(
+                                          const Duration(milliseconds: 100),
+                                          () => _approveMaterial(material),
+                                        ),
+                                        child: const Row(children: [Icon(Icons.check_circle), SizedBox(width: 8), Text('Approve')]),
+                                      ),
+                                    if (canShowEditDelete)
+                                      PopupMenuItem(
+                                        onTap: () => Future.delayed(
+                                          const Duration(milliseconds: 100),
+                                          () => _editMaterial(material),
+                                        ),
+                                        child: const Row(children: [Icon(Icons.edit), SizedBox(width: 8), Text('Edit')]),
+                                      ),
+                                    if (canShowEditDelete)
+                                      PopupMenuItem(
+                                        onTap: () => Future.delayed(
+                                          const Duration(milliseconds: 100),
+                                          () => _deleteMaterial(material.materialId, material.name),
+                                        ),
+                                        child: const Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 8), Text('Delete', style: TextStyle(color: Colors.red))]),
+                                      ),
+                                  ],
+                                );
+                              },
+                              child: const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Icon(Icons.more_vert),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (material.description != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(material.description!, style: Theme.of(context).textTheme.bodySmall, maxLines: 2, overflow: TextOverflow.ellipsis),
+                        ),
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 12,
+                        children: [
+                          _buildDetailChip(icon: Icons.category, label: 'Category', value: material.category == material_model.MaterialCategory.equipment ? 'Equipment' : 'Materials'),
+                          if (material.partNumber != null) _buildDetailChip(icon: Icons.numbers, label: 'Part #', value: material.partNumber!),
+                          if (material.manufacturer != null) _buildDetailChip(icon: Icons.factory, label: 'Manufacturer', value: material.manufacturer!),
+                          _buildDetailChip(icon: Icons.straighten, label: 'Unit', value: material.unitOfMeasure),
+                          _buildDetailChip(icon: Icons.attach_money, label: 'Cost', value: '\$${material.unitCost.toStringAsFixed(2)}'),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                title: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        material.name,
-                        style: TextStyle(
-                          fontWeight: material.isApproved ? FontWeight.normal : FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    if (!material.isApproved)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.shade300),
-                        ),
-                        child: const Text(
-                          'Requested',
-                          style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                  ],
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (material.description != null)
-                      Text(
-                        material.description!,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    Text(
-                      'Category: ${material.category == material_model.MaterialCategory.equipment ? 'Equipment' : 'Materials'}',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    if (material.partNumber != null)
-                      Text(
-                        'Part #: ${material.partNumber}',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    if (material.manufacturer != null)
-                      Text(
-                        'Mfg: ${material.manufacturer}',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    Text(
-                      'Unit: ${material.unitOfMeasure} | Cost: \$${material.unitCost.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                trailing: hasMenuItems 
-                  ? GestureDetector(
-                      onTapDown: (details) {
-                        final position = details.globalPosition;
-                        showMenu(
-                          context: context,
-                          position: RelativeRect.fromLTRB(
-                            position.dx,
-                            position.dy,
-                            position.dx,
-                            position.dy,
-                          ),
-                          items: [
-                            if (canShowApprove)
-                              PopupMenuItem(
-                                child: const Text('Approve'),
-                                onTap: () => Future.delayed(
-                                  const Duration(milliseconds: 100),
-                                  () => _approveMaterial(material),
-                                ),
-                              ),
-                            if (canShowEditDelete)
-                              PopupMenuItem(
-                                child: const Text('Edit'),
-                                onTap: () => Future.delayed(
-                                  const Duration(milliseconds: 100),
-                                  () => _editMaterial(material),
-                                ),
-                              ),
-                            if (canShowEditDelete)
-                              PopupMenuItem(
-                                child: const Text('Delete'),
-                                onTap: () => Future.delayed(
-                                  const Duration(milliseconds: 100),
-                                  () => _deleteMaterial(
-                                      material.materialId, material.name),
-                                ),
-                              ),
-                          ],
-                        );
-                      },
-                      child: const Icon(Icons.more_vert),
-                    )
-                  : null, // Don't show the menu icon if the user has no available actions
               ),
             );
           },
@@ -692,11 +535,30 @@ class _MaterialsPageState extends State<MaterialsPage> {
     );
   }
 
+  Widget _buildDetailChip({required IconData icon, required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: AppTheme.surfaceVariant, borderRadius: BorderRadius.circular(6), border: Border.all(color: AppTheme.border)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: AppTheme.textSecondary),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.labelSmall),
+              Text(value, style: Theme.of(context).textTheme.labelMedium),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.currentUser;
-
-    // Dynamically build tabs based on permissions
     final tabs = <Tab>[];
     final views = <Widget>[];
 
@@ -708,17 +570,13 @@ class _MaterialsPageState extends State<MaterialsPage> {
       tabs.add(const Tab(text: 'Request Material'));
       views.add(_buildFormTab(isRequest: true));
     }
-    
     tabs.add(const Tab(text: 'All Materials'));
     views.add(_buildAllMaterialsTab());
 
     return Scaffold(
       appBar: AppBar(
         title: const Text("Materials Management"),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) {
@@ -729,62 +587,36 @@ class _MaterialsPageState extends State<MaterialsPage> {
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              if (user != null && user.role == UserRole.systemAdmin)
-                const PopupMenuItem<String>(
-                  value: 'management',
-                  child: ListTile(
-                    leading: Icon(Icons.people),
-                    title: Text('Manage Users'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              const PopupMenuItem<String>(
-                value: 'logout',
-                child: ListTile(
-                  leading: Icon(Icons.logout),
-                  title: Text('Logout'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
+              if (user != null && user.role == UserRole.systemAdmin) const PopupMenuItem<String>(value: 'management', child: Row(children: [Icon(Icons.people), SizedBox(width: 12), Text('Manage Users')])),
+              const PopupMenuItem<String>(value: 'logout', child: Row(children: [Icon(Icons.logout), SizedBox(width: 12), Text('Logout')])),
             ],
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (user != null)
-                      Tooltip(
-                        message:
-                            '${user.name}\n${user.email}\n${_roleDisplayName(user.role)}',
-                        child: CircleAvatar(
-                          radius: 16,
-                          child: Text(
-                            user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                          ),
-                        ),
-                      ),
-                  ],
+                child: Tooltip(
+                  message: user != null ? '${user.name}\n${user.email}\n${_roleDisplayName(user.role)}' : '',
+                  child: CircleAvatar(
+                    backgroundColor: AppTheme.primary,
+                    radius: 18,
+                    child: Text(
+                      user != null && user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: DefaultTabController(
         length: tabs.length,
-        initialIndex: tabs.length - 1, // Start on 'All Materials' tab
+        initialIndex: tabs.length - 1,
         child: Column(
           children: [
-            TabBar(
-              isScrollable: tabs.length > 2,
-              tabs: tabs,
-            ),
-            Expanded(
-              child: TabBarView(
-                children: views,
-              ),
-            ),
+            Container(color: Colors.white, child: TabBar(isScrollable: tabs.length > 2, tabs: tabs)),
+            Expanded(child: TabBarView(children: views)),
           ],
         ),
       ),
